@@ -16,6 +16,7 @@ SKILLS_DIR = "/skills/"  # 相对于 backend root_dir（PROJECT_ROOT）
 
 # ── 场景配置 ────────────────────────────────────────────────
 SCENARIOS_FILE = PROJECT_ROOT / "scenarios.json"
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 
 
 def init_env() -> None:

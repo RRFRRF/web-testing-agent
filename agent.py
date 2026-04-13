@@ -9,6 +9,7 @@ from deepagents.backends import LocalShellBackend
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 
+from browser_tools import build_browser_tools
 from config import PROJECT_ROOT, SKILLS_DIR, require_env
 from messages import normalize_messages_for_compatible_endpoint
 from prompts import SYSTEM_PROMPT
@@ -52,7 +53,7 @@ def build_agent() -> Any:
     )
     return create_deep_agent(
         model=build_model(),
-        tools=[],
+        tools=build_browser_tools(),
         system_prompt=SYSTEM_PROMPT,
         backend=backend,
         skills=[SKILLS_DIR],

@@ -57,6 +57,8 @@ Web 端到端测试的方法论与执行流程。
 - 命令返回成功 ≠ 步骤通过。必须验证页面状态确实符合预期。
 - 步骤通过的唯一标准是**业务目标达成**，不是命令执行完毕。
 - 对联想框、下拉框、日期控件等复杂组件：操作后必须验证选中值是否正确，不能只依赖 fill。
+- 对联想框、自动补全输入框、候选下拉框：**默认优先鼠标点击候选项，不要默认使用 Enter 确认**。只有在用户明确要求键盘操作，或页面没有可点击候选项时，才考虑 Enter / 方向键。
+- 对联想候选类组件，优先采用“聚焦 → 输入 → 立即 snapshot / screenshot → 点击候选项 → 再次验证最终值”的节奏，避免因为浮层瞬时消失而误判。
 
 </execution-cycle>
 
@@ -90,17 +92,30 @@ Web 端到端测试的方法论与执行流程。
 ## 浏览器会话流程
 
 ```
-open --headed → [ 执行循环 × N ] → 收集最终证据 → close
+playwright-cli open / click / type / select 等交互 → 在关键节点使用 capture_snapshot / capture_screenshot → 收集最终证据
 ```
 
-证据收集手段（按需选用）：
+证据采集优先级：
 
-| 手段 | 用途 | 优先级 |
-|------|------|--------|
-| snapshot | 页面结构与元素状态 | 首选，轻量 |
-| screenshot | 视觉证据，适用于 UI 问题 | 发现 UI 异常时使用 |
-| console | JS 错误、警告、日志 | 每步检查 |
-| network | 请求失败、异常状态码 | 可疑时检查 |
+| 目标 | 优先方式 | 说明 |
+|------|----------|------|
+| 打开页面 | `playwright-cli` 命令 | 默认直接使用原生命令，保持交互灵活性 |
+| 点击 / 输入 / 选择 / 导航 | `playwright-cli` 命令 | 默认直接使用原生命令，不优先走自定义封装 |
+| 页面结构快照 | `capture_snapshot` | 原始结果自动落盘到 outputs，并只返回轻量摘要 + 路径 |
+| 页面截图 | `capture_screenshot` | 图片保存到 outputs，并返回路径 |
+| 额外细节检查 | 文件系统工具 | 用 `read_file / glob / grep / ls` 按需查看 artifact |
+
+大体量证据处理规则：
+1. **优先落盘**：snapshot 等大输出应先保存到 `outputs/{run_id}/...`
+2. **上下文只保留摘要**：当前轮只使用工具返回的轻量摘要和文件路径
+3. **按需读取原文**：需要细节时，使用文件系统工具访问 outputs 目录中的 artifact
+4. **常常落盘**：不要在对话中反复保留大段原始快照文本
+
+建议灵活使用以下文件系统工具：
+- `ls`：查看当前 run 目录及其 artifact 分布
+- `read_file`：读取 manifest 或某个具体 artifact 文件
+- `glob`：查找某类 artifact，如 `outputs/**/snapshots/*.yaml`
+- `grep`：在日志和快照中搜索关键文本
 
 命令语法参考 **playwright-cli skill**，此处不重复。
 
@@ -117,6 +132,7 @@ open --headed → [ 执行循环 × N ] → 收集最终证据 → close
 - 目标 URL
 - 测试场景描述
 - 总体结论：✅ 通过 / ⚠️ 部分通过 / ❌ 未通过
+- 本次 artifacts 根目录（例如 `outputs/{run_id}/`）
 
 ### 2. 测试步骤详情
 
@@ -125,7 +141,7 @@ open --headed → [ 执行循环 × N ] → 收集最终证据 → close
 > **步骤 N**：{步骤描述}
 > - 状态：✅ 通过 / ❌ 失败 / ⚠️ 存疑
 > - 执行摘要：做了什么、观察到什么
-> - 证据：关键 snapshot 片段、命令输出
+> - 证据：优先引用 artifact 路径（snapshot / screenshot / console / network / manifest）
 
 ### 3. 发现的问题
 
@@ -135,7 +151,7 @@ open --headed → [ 执行循环 × N ] → 收集最终证据 → close
 > - 严重程度：🔴 严重 / 🟡 中等 / 🟢 轻微
 > - 描述：具体问题是什么
 > - 复现路径：如何触发
-> - 证据：直接来自浏览器的观察
+> - 证据：直接来自浏览器观察或 outputs 中的 artifact 路径
 
 若无问题发现，注明"未发现问题"。
 
@@ -151,7 +167,9 @@ open --headed → [ 执行循环 × N ] → 收集最终证据 → close
 
 - 不要跳过任何输入步骤——每一步都必须尝试执行并报告结果。
 - 不要在初始观察后就停止——必须完成所有步骤的完整执行循环。
-- 不要编造未观察到的现象——所有结论必须有 playwright-cli 输出作为证据。
-- 不要重复 playwright-cli skill 的命令参考——需要时引导用户查阅该 skill。
+- 不要编造未观察到的现象——所有结论必须有浏览器观察或 artifact 文件作为证据。
+- 优先使用自定义 browser tools 获取证据，不要直接把超长 snapshot / console / network 文本塞进上下文。
+- 对大结果要常常落盘，并通过 `ls / read_file / glob / grep` 按需访问原始文件。
+- 不要重复 playwright-cli skill 的命令参考——需要底层命令时再查阅该 skill。
 
 </constraints>

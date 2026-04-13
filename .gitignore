@@ -1,5 +1,7 @@
 .env
 .venv/
+outputs/
+.claude/
 __pycache__/
 .playwright-cli/
 *.pyc
