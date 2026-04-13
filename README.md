@@ -1,5 +1,7 @@
 # web-testing-agent
 
+中文 | [English](README.en.md)
+
 一个基于 Deep Agents 的最小化 Web 自动测试 MVP：Agent 能根据模糊场景或结构化步骤，在真实浏览器中执行 E2E 测试，自动把快照/截图等大体量证据落盘，并同时提供 CLI 与本地 Web 控制台两种使用方式。
 
 ## 功能特性
