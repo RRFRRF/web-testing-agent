@@ -1,0 +1,18 @@
+[project]
+name = "mvp-deepagents"
+version = "0.1.0"
+description = "Minimal Deep Agents MVP for web testing with playwright-cli"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+  "deepagents>=0.5,<0.6",
+  "langchain-openai>=1.0,<2.0",
+  "langgraph>=1.0,<2.0",
+  "python-dotenv>=1.0,<2.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
