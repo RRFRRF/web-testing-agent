@@ -297,4 +297,4 @@ uv run python webapp.py
 
 ## License
 
-如需开源发布，建议你后续补充正式 License 文件。
+MIT
