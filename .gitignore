@@ -6,3 +6,4 @@ __pycache__/
 .playwright-cli/
 *.pyc
 .claude/settings.local.json
+large_tool_results/

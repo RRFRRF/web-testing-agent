@@ -144,19 +144,83 @@ def open_page(url: str, config: RunnableConfig) -> str:
     )
 
 
+def _capture_screenshot_record(*, label: str, config: RunnableConfig) -> dict[str, Any]:
+    run_id, outputs_dir = _get_run_values(config)
+    screenshots_dir = _artifact_dir(outputs_dir, "screenshots")
+    existing = []
+    if screenshots_dir.exists():
+        existing = sorted(screenshots_dir.glob("*.png"))
+    next_index = len(existing) + 1
+    filename = f"{next_index:03d}-{label.strip().replace(' ', '-').lower() or 'screenshot'}.png"
+    file_path = screenshots_dir / filename
+
+    result = _run_playwright([*_playwright_prefix(), "screenshot", f"--filename={file_path.as_posix()}"])
+    output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to capture screenshot: {output.strip()}")
+    if not file_path.exists():
+        raise RuntimeError(f"Screenshot command succeeded but file was not created: {file_path.as_posix()}")
+
+    preview = f"Screenshot saved to {file_path.as_posix()}\nCommand output:\n{output.strip()}"
+    record = register_file_artifact(
+        manifest_path=_manifest_path(outputs_dir),
+        run_id=run_id,
+        artifact_type="screenshot",
+        label=label,
+        file_path=file_path,
+        preview=preview,
+    )
+    return {
+        "artifact_type": record.type,
+        "label": record.label,
+        "path": record.path,
+        "size_bytes": record.size_bytes,
+        "preview": record.preview,
+    }
+
+
 def capture_snapshot(label: str, config: RunnableConfig) -> str:
-    """采集 snapshot，并将原始结果落盘。"""
+    """采集 snapshot，并默认同时截图，将原始结果落盘。"""
     result = _run_playwright([*_playwright_prefix(), "snapshot"])
     output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
     if result.returncode != 0:
         raise RuntimeError(f"Failed to capture snapshot: {output.strip()}")
-    return _register_command_result(
+    snapshot_response = _register_command_result(
         config=config,
         artifact_type="snapshot",
         label=label,
         artifact_subdir="snapshots",
         suffix=".yaml",
         content=output.strip(),
+    )
+
+    snapshot_path = None
+    for line in snapshot_response.splitlines():
+        if line.startswith("- path: "):
+            snapshot_path = line.removeprefix("- path: ").strip()
+            break
+
+    screenshot_label = f"{label}-auto"
+    screenshot: dict[str, Any] | None = None
+    screenshot_error: str | None = None
+    try:
+        screenshot = _capture_screenshot_record(label=screenshot_label, config=config)
+    except Exception as exc:
+        screenshot_error = str(exc)
+
+    return json.dumps(
+        {
+            "snapshot": {
+                "artifact_type": "snapshot",
+                "label": label,
+                "path": snapshot_path,
+                "summary": snapshot_response,
+            },
+            "screenshot": screenshot,
+            "screenshot_error": screenshot_error,
+        },
+        ensure_ascii=False,
+        indent=2,
     )
 
 
@@ -193,31 +257,9 @@ def capture_network(label: str, config: RunnableConfig) -> str:
 
 
 def capture_screenshot(label: str, config: RunnableConfig) -> str:
-    """截图并把图片路径注册进 manifest。"""
-    run_id, outputs_dir = _get_run_values(config)
-    screenshots_dir = _artifact_dir(outputs_dir, "screenshots")
-    existing = []
-    if screenshots_dir.exists():
-        existing = sorted(screenshots_dir.glob("*.png"))
-    next_index = len(existing) + 1
-    filename = f"{next_index:03d}-{label.strip().replace(' ', '-').lower() or 'screenshot'}.png"
-    file_path = screenshots_dir / filename
-
-    result = _run_playwright([*_playwright_prefix(), "screenshot", f"--filename={file_path.as_posix()}"])
-    output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to capture screenshot: {output.strip()}")
-    if not file_path.exists():
-        raise RuntimeError(f"Screenshot command succeeded but file was not created: {file_path.as_posix()}")
-
-    preview = f"Screenshot saved to {file_path.as_posix()}\nCommand output:\n{output.strip()}"
-    return _register_existing_file(
-        config=config,
-        artifact_type="screenshot",
-        label=label,
-        file_path=file_path,
-        preview=preview,
-    )
+    """按需截图并把图片路径注册进 manifest。"""
+    record = _capture_screenshot_record(label=label, config=config)
+    return json.dumps(record, ensure_ascii=False, indent=2)
 
 
 def run_browser_command(command: str, label: str, config: RunnableConfig) -> str:
@@ -251,13 +293,13 @@ def build_browser_tools() -> list[StructuredTool]:
     return [
         StructuredTool.from_function(
             name="capture_snapshot",
-            description="Capture a page snapshot, save the full raw output to outputs/{run_id}/snapshots/, and return only a lightweight summary plus file path.",
+            description="Capture a page snapshot, automatically save a companion screenshot, persist both artifacts under outputs/{run_id}/, and return JSON containing the snapshot summary plus screenshot path.",
             func=capture_snapshot,
             args_schema=ArtifactCaptureInput,
         ),
         StructuredTool.from_function(
             name="capture_screenshot",
-            description="Capture a screenshot, save it to outputs/{run_id}/screenshots/, and return the saved file path and short summary.",
+            description="Capture an on-demand screenshot when the agent decides a separate screenshot is useful, save it to outputs/{run_id}/screenshots/, and return JSON with the saved file path.",
             func=capture_screenshot,
             args_schema=ArtifactCaptureInput,
         ),

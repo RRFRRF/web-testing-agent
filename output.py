@@ -79,47 +79,107 @@ def summarize_message(message: Any) -> str:
     return format_inline_text(json.dumps(make_json_safe(message), ensure_ascii=False))
 
 
-# ── 流式打印 ──────────────────────────────────────────────
+# ── 流式事件转换 ───────────────────────────────────────────
 
-def print_stream_event(chunk: Any, *, show_full_events: bool = False) -> None:
-    """将 agent.stream() 的 chunk 格式化输出到控制台。"""
+def events_from_stream_chunk(chunk: Any, *, show_full_events: bool = False) -> list[dict[str, Any]]:
+    """将 agent.stream() 的 chunk 转成结构化事件列表。"""
+    events: list[dict[str, Any]] = []
+
     if isinstance(chunk, tuple) and len(chunk) == 2 and isinstance(chunk[0], str):
         mode, payload = chunk
+        safe_payload = make_json_safe(payload)
+
         if mode == "messages":
             target = payload[0] if isinstance(payload, (list, tuple)) and payload else payload
             summary = summarize_message(target)
             if summary:
-                print(f"[model] {summary}")
-            return
+                events.append(
+                    {
+                        "channel": "model",
+                        "mode": mode,
+                        "summary": summary,
+                        "payload": make_json_safe(target),
+                    }
+                )
+            return events
 
         if mode == "updates" and isinstance(payload, dict):
             for node_name, node_payload in payload.items():
                 if node_payload is None:
                     continue
-                print(f"[node] {node_name}")
+                safe_node_payload = make_json_safe(node_payload)
                 if show_full_events:
-                    print(json.dumps(make_json_safe(node_payload), ensure_ascii=False, indent=2))
-                    continue
-                if isinstance(node_payload, dict):
+                    summary = json.dumps(safe_node_payload, ensure_ascii=False, indent=2)
+                elif isinstance(node_payload, dict):
                     messages = node_payload.get("messages")
                     if isinstance(messages, list) and messages:
-                        print(f"  -> {summarize_message(messages[-1])}")
+                        summary = summarize_message(messages[-1])
                     else:
-                        print(f"  -> {format_inline_text(json.dumps(make_json_safe(node_payload), ensure_ascii=False))}")
+                        summary = format_inline_text(json.dumps(safe_node_payload, ensure_ascii=False))
                 else:
-                    print(f"  -> {format_inline_text(json.dumps(make_json_safe(node_payload), ensure_ascii=False))}")
-            return
+                    summary = format_inline_text(json.dumps(safe_node_payload, ensure_ascii=False))
+                events.append(
+                    {
+                        "channel": "node",
+                        "mode": mode,
+                        "node": node_name,
+                        "summary": summary,
+                        "payload": safe_node_payload,
+                    }
+                )
+            return events
 
         if show_full_events:
-            print(f"[{mode}] {json.dumps(make_json_safe(payload), ensure_ascii=False, indent=2)}")
-            return
-        print(f"[{mode}] {format_inline_text(json.dumps(make_json_safe(payload), ensure_ascii=False))}")
-        return
+            summary = json.dumps(safe_payload, ensure_ascii=False, indent=2)
+        else:
+            summary = format_inline_text(json.dumps(safe_payload, ensure_ascii=False))
+        events.append(
+            {
+                "channel": mode,
+                "mode": mode,
+                "summary": summary,
+                "payload": safe_payload,
+            }
+        )
+        return events
 
+    safe_chunk = make_json_safe(chunk)
     if show_full_events:
-        print(f"[event] {json.dumps(make_json_safe(chunk), ensure_ascii=False, indent=2)}")
-        return
-    print(f"[event] {format_inline_text(json.dumps(make_json_safe(chunk), ensure_ascii=False))}")
+        summary = json.dumps(safe_chunk, ensure_ascii=False, indent=2)
+    else:
+        summary = format_inline_text(json.dumps(safe_chunk, ensure_ascii=False))
+    events.append(
+        {
+            "channel": "event",
+            "mode": "event",
+            "summary": summary,
+            "payload": safe_chunk,
+        }
+    )
+    return events
+
+
+# ── 流式打印 ──────────────────────────────────────────────
+
+def format_event_for_cli(event: dict[str, Any]) -> str:
+    """将结构化事件转成 CLI 可读文本。"""
+    channel = str(event.get("channel") or "event")
+    summary = str(event.get("summary") or "")
+
+    if channel == "model":
+        return f"[model] {summary}"
+
+    if channel == "node":
+        node_name = str(event.get("node") or "unknown")
+        return f"[node] {node_name}\n  -> {summary}"
+
+    return f"[{channel}] {summary}"
+
+
+def print_stream_event(chunk: Any, *, show_full_events: bool = False) -> None:
+    """将 agent.stream() 的 chunk 格式化输出到控制台。"""
+    for event in events_from_stream_chunk(chunk, show_full_events=show_full_events):
+        print(format_event_for_cli(event))
 
 
 # ── 最终结果 ──────────────────────────────────────────────

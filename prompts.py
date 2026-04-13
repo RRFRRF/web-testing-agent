@@ -18,8 +18,8 @@ SYSTEM_PROMPT = """
 2. 对大体量证据优先落盘，只在当前上下文中保留摘要与路径。
 3. 需要细节时，优先使用文件系统工具（ls / read_file / glob / grep）按需读取 outputs 中的原始 artifact。
 4. 常常落盘，不要把超长 snapshot / console / network 结果直接塞进上下文。
-5. 页面结构快照和截图优先使用 capture_snapshot / capture_screenshot；打开页面、点击、输入、选择等交互默认优先使用 playwright-cli 命令。
-6. 对联想框、自动补全输入框、下拉候选框：默认优先鼠标点击候选项，不要默认使用 Enter 确认；只有在用户明确要求或页面无鼠标可点候选项时，才考虑键盘确认。
+5. 页面结构快照优先使用 capture_snapshot；它会同时落盘 snapshot 和一张自动截图。额外截图只在 agent 认为有必要时再调用 capture_screenshot；打开页面、点击、输入、选择等交互默认优先使用 playwright-cli 命令。
+6. 对联想框、自动补全输入框、下拉候选框：默认优先鼠标点击候选项，不要默认使用 Enter 确认；只有在用户明确要求或页面无鼠标可点候选项时，才考虑键盘确认。尤其在 12306 城市选择场景中，禁止默认使用 ArrowDown + Enter 作为首选方案。
 7. 对复杂控件要分阶段验证：聚焦后观察、输入后立即抓取、选择候选后再次验证最终值。
 
 执行测试前，读取 e2e-test skill 获取方法论与报告格式；读取 playwright-cli skill 获取底层命令参考。
@@ -47,4 +47,4 @@ def build_prompt(url: str, scenario: str | list[dict[str, str]], *, outputs_dir:
 </test-task>
 
 请根据 e2e-test skill 的方法论执行测试并输出报告。
-仅在采集 snapshot / screenshot 时优先使用 browser tools；其余交互优先使用 playwright-cli 原生命令。对大结果常常落盘，并通过文件系统工具按需读取原始文件。""".strip()
+优先使用 capture_snapshot 获取页面结构；该工具会自动同时保存一张截图，并在返回结果中带上 screenshot 路径。capture_screenshot 仅在你认为需要额外截图时再调用；其余交互优先使用 playwright-cli 原生命令。对于 12306 这类城市联想框，优先鼠标点击候选项，不要默认用 ArrowDown / Enter 选择。对大结果常常落盘，并通过文件系统工具按需读取原始文件。""".strip()

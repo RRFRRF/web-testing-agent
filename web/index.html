@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MVP Deep Agents 控制台</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d12;
+        --panel: rgba(20, 24, 33, 0.92);
+        --panel-soft: rgba(31, 37, 50, 0.92);
+        --panel-strong: rgba(15, 18, 25, 0.98);
+        --text: #edf2ff;
+        --muted: #9aa7bd;
+        --line: rgba(255, 255, 255, 0.08);
+        --accent: #7aa2ff;
+        --accent-soft: rgba(122, 162, 255, 0.14);
+        --ok: #6edb8f;
+        --ok-soft: rgba(110, 219, 143, 0.14);
+        --warn: #ffd36e;
+        --warn-soft: rgba(255, 211, 110, 0.14);
+        --err: #ff8f8f;
+        --err-soft: rgba(255, 143, 143, 0.14);
+        --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(122, 162, 255, 0.18), transparent 32%),
+          radial-gradient(circle at top right, rgba(110, 219, 143, 0.12), transparent 28%),
+          linear-gradient(180deg, #0b0d12 0%, #0e1118 100%);
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 340px minmax(420px, 1fr) 420px;
+        gap: 18px;
+        min-height: 100vh;
+        padding: 18px;
+      }
+
+      .panel {
+        min-height: 0;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: var(--panel);
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 18px 20px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-title {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .panel-subtitle {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .panel-body {
+        padding: 18px 20px 20px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      input,
+      textarea,
+      button {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel-soft);
+        color: var(--text);
+        font: inherit;
+      }
+
+      input,
+      textarea {
+        padding: 12px 14px;
+        outline: none;
+        transition: border-color 0.16s ease, background 0.16s ease;
+      }
+
+      input:focus,
+      textarea:focus {
+        border-color: rgba(122, 162, 255, 0.5);
+        background: rgba(35, 42, 58, 0.96);
+      }
+
+      textarea {
+        min-height: 300px;
+        resize: vertical;
+        line-height: 1.55;
+      }
+
+      button {
+        padding: 12px 14px;
+        cursor: pointer;
+        font-weight: 700;
+        transition: transform 0.12s ease, opacity 0.12s ease, background 0.16s ease;
+      }
+
+      button:hover { transform: translateY(-1px); }
+      button:disabled { opacity: 0.6; cursor: wait; transform: none; }
+
+      .primary {
+        background: linear-gradient(135deg, #8ab0ff 0%, #6f8fff 100%);
+        color: #0f1630;
+        border: 0;
+      }
+
+      .secondary {
+        background: transparent;
+        color: var(--text);
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 112px;
+        gap: 10px;
+      }
+
+      .status-card {
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .status-pill::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: currentColor;
+      }
+
+      .status-running { color: var(--accent); background: var(--accent-soft); }
+      .status-completed { color: var(--ok); background: var(--ok-soft); }
+      .status-failed { color: var(--err); background: var(--err-soft); }
+      .status-idle,
+      .status-queued,
+      .status-archived { color: var(--warn); background: var(--warn-soft); }
+
+      .meta-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .meta-item {
+        display: grid;
+        gap: 2px;
+      }
+
+      .meta-item span {
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .meta-item strong {
+        font-size: 12px;
+        word-break: break-word;
+      }
+
+      .preview-shell {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        height: 100%;
+      }
+
+      .preview-stage {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 480px;
+        height: calc(100vh - 170px);
+        margin: 18px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(20, 24, 34, 0.95) 0%, rgba(11, 13, 18, 0.98) 100%);
+        overflow: hidden;
+      }
+
+      .preview-stage img {
+        max-width: calc(100% - 28px);
+        max-height: calc(100% - 28px);
+        border-radius: 16px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .empty-state {
+        text-align: center;
+        color: var(--muted);
+        padding: 24px;
+      }
+
+      .empty-state strong {
+        display: block;
+        color: var(--text);
+        margin-bottom: 8px;
+        font-size: 16px;
+      }
+
+      .screenshot-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 20px 18px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .screenshot-meta a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .logs-panel {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        height: 100%;
+      }
+
+      .log-list {
+        padding: 16px 16px 18px;
+        overflow: auto;
+      }
+
+      .log-empty {
+        display: grid;
+        place-items: center;
+        min-height: 220px;
+        color: var(--muted);
+        text-align: center;
+        border: 1px dashed var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .log-entry {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .log-entry + .log-entry {
+        margin-top: 12px;
+      }
+
+      .log-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .log-kind {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .log-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+      }
+
+      .dot-agent { background: #8ab0ff; }
+      .dot-tools { background: #6edb8f; }
+      .dot-system { background: #ffd36e; }
+      .dot-report { background: #ff9ad5; }
+      .dot-other { background: #9aa7bd; }
+
+      .log-time {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .log-title {
+        margin-bottom: 6px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .log-summary {
+        color: #d8e0f0;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 13px;
+      }
+
+      .log-meta {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .report-card {
+        background: linear-gradient(180deg, rgba(255, 154, 213, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      }
+
+      @media (max-width: 1360px) {
+        .app {
+          grid-template-columns: 320px 1fr;
+          grid-template-rows: auto auto;
+        }
+        .panel.logs {
+          grid-column: 1 / -1;
+          min-height: 360px;
+        }
+      }
+
+      @media (max-width: 980px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+        .preview-stage {
+          height: 54vh;
+          min-height: 320px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Scenario</div>
+            <div class="panel-subtitle">配置 URL 和测试场景，直接启动当前运行</div>
+          </div>
+        </div>
+        <div class="panel-body stack">
+          <div>
+            <label for="url">目标 URL</label>
+            <input id="url" placeholder="https://..." />
+          </div>
+
+          <div>
+            <label for="scenario">测试场景</label>
+            <textarea id="scenario" placeholder="输入模糊场景描述，或 JSON steps 数组"></textarea>
+          </div>
+
+          <div class="actions">
+            <button id="startBtn" class="primary">启动运行</button>
+            <button id="resetBtn" class="secondary">重置</button>
+          </div>
+
+          <div id="hint" class="panel-subtitle">支持模糊描述，也支持结构化 JSON steps。</div>
+
+          <div class="status-card">
+            <div class="status-row">
+              <div id="statusPill" class="status-pill status-idle">idle</div>
+            </div>
+            <div class="meta-list">
+              <div class="meta-item">
+                <span>run id</span>
+                <strong id="runIdText">-</strong>
+              </div>
+              <div class="meta-item">
+                <span>当前 URL</span>
+                <strong id="runUrlText">-</strong>
+              </div>
+              <div class="meta-item">
+                <span>状态说明</span>
+                <strong id="runStatusText">等待启动</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">实时截图</div>
+            <div class="panel-subtitle">自动跟随最新 screenshot 更新</div>
+          </div>
+        </div>
+        <div class="preview-shell">
+          <div id="previewBox" class="preview-stage">
+            <div class="empty-state">
+              <strong>暂无截图</strong>
+              启动运行后，这里会持续刷新最新浏览器画面。
+            </div>
+          </div>
+          <div class="screenshot-meta">
+            <span id="screenshotPathText">尚未生成 screenshot</span>
+            <a id="openScreenshotLink" href="#" target="_blank" style="display:none">打开原图</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel logs">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">日志输出</div>
+            <div class="panel-subtitle">更直观地看 agent、tools 与结果输出</div>
+          </div>
+        </div>
+        <div id="eventList" class="log-list">
+          <div class="log-empty">启动运行后，这里会实时显示结构化日志。</div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const state = {
+        currentRunId: null,
+        eventSource: null,
+        latestReport: null,
+      };
+
+      const urlInput = document.getElementById('url');
+      const scenarioInput = document.getElementById('scenario');
+      const startBtn = document.getElementById('startBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const hint = document.getElementById('hint');
+      const statusPill = document.getElementById('statusPill');
+      const runIdText = document.getElementById('runIdText');
+      const runUrlText = document.getElementById('runUrlText');
+      const runStatusText = document.getElementById('runStatusText');
+      const previewBox = document.getElementById('previewBox');
+      const screenshotPathText = document.getElementById('screenshotPathText');
+      const openScreenshotLink = document.getElementById('openScreenshotLink');
+      const eventList = document.getElementById('eventList');
+
+      function escapeHtml(text) {
+        return String(text ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function setStatus(status, message) {
+        const normalized = ['running', 'completed', 'failed', 'queued', 'archived'].includes(status) ? status : 'idle';
+        statusPill.className = `status-pill status-${normalized}`;
+        statusPill.textContent = normalized;
+        runStatusText.textContent = message || normalized;
+      }
+
+      function formatTime(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleTimeString('zh-CN', { hour12: false });
+      }
+
+      function classifyEvent(event) {
+        if (event.mode === 'report') {
+          return { dot: 'dot-report', kind: '结果摘要' };
+        }
+        if (event.channel === 'system') {
+          return { dot: 'dot-system', kind: '系统' };
+        }
+        if (event.node === 'model') {
+          return { dot: 'dot-agent', kind: 'Agent' };
+        }
+        if (event.node === 'tools') {
+          return { dot: 'dot-tools', kind: 'Tools' };
+        }
+        return { dot: 'dot-other', kind: event.node || event.channel || '事件' };
+      }
+
+      function summarizeTitle(event) {
+        if (event.mode === 'report') return '测试完成后的结果摘要';
+        if (event.channel === 'system') {
+          if (event.mode === 'start') return '运行开始';
+          if (event.mode === 'complete') return '运行完成';
+          if (event.mode === 'error') return '运行失败';
+          return '系统状态';
+        }
+
+        const summary = String(event.summary || '');
+        if (summary.startsWith('tool_calls:')) return 'Agent 正在决定下一步动作';
+        if (summary.includes('artifact saved') || (summary.startsWith('{') && summary.includes('"snapshot"'))) return '证据已落盘';
+        if (summary === '<no output> [Command succeeded with exit code 0]') return '页面操作已完成';
+        if (summary.startsWith('No matches found')) return '搜索结果';
+        if (event.node === 'model') return 'Agent 输出';
+        if (event.node === 'tools') return '工具执行结果';
+        return '运行事件';
+      }
+
+      function prettifySummary(event) {
+        const raw = String(event.summary || '').trim();
+        if (!raw) return '（空）';
+
+        if (event.channel === 'system') {
+          return raw;
+        }
+
+        if (raw.startsWith('tool_calls:')) {
+          const toolNames = raw.replace('tool_calls:', '').split(',').map(x => x.trim()).filter(Boolean);
+          const toolMap = {
+            execute: '页面操作',
+            read_file: '读取产物文件',
+            grep: '搜索证据',
+            capture_snapshot: '采集页面快照',
+            capture_screenshot: '额外截图',
+            ls: '查看目录',
+            glob: '查找文件',
+          };
+          const translated = toolNames.map(name => toolMap[name] || name);
+          return `准备调用：${translated.join('、')}`;
+        }
+
+        if (raw === '<no output> [Command succeeded with exit code 0]') {
+          return '页面操作执行成功。';
+        }
+
+        if (raw.startsWith('No matches found')) {
+          return '未搜索到匹配内容。';
+        }
+
+        if (raw.startsWith('{') && raw.includes('"snapshot"') && raw.includes('"screenshot"')) {
+          return '已保存页面快照，并自动补充了一张对应截图。';
+        }
+
+        if (raw.includes('artifact saved')) {
+          if (raw.includes('type: snapshot')) return '已保存页面快照。';
+          if (raw.includes('type: screenshot')) return '已保存页面截图。';
+          return '已保存新的运行产物。';
+        }
+
+        if (event.node === 'tools' && raw.includes('### Ran Playwright code')) {
+          return 'Playwright 页面操作已执行完成。';
+        }
+
+        if (event.node === 'tools' && raw.includes('textbox') && raw.includes('[ref=')) {
+          return '已读取页面快照片段，正在检查页面状态。';
+        }
+
+        if (event.node === 'tools' && raw.match(/^\d+\s*-\s+/)) {
+          return '已读取产物文件内容，正在分析页面细节。';
+        }
+
+        if (event.mode === 'report') {
+          const compact = raw.split('\n').filter(Boolean).slice(0, 8).join('\n');
+          return compact;
+        }
+
+        return raw;
+      }
+
+      function renderSingleEvent(event) {
+        const info = classifyEvent(event);
+        const title = summarizeTitle(event);
+        const summary = prettifySummary(event);
+        const meta = [];
+        if (event.id) meta.push(`#${event.id}`);
+        if (event.node) meta.push(event.node);
+        if (event.mode && event.mode !== 'updates') meta.push(event.mode);
+
+        return `
+          <div class="log-entry ${event.mode === 'report' ? 'report-card' : ''}">
+            <div class="log-top">
+              <div class="log-kind"><span class="log-dot ${info.dot}"></span>${escapeHtml(info.kind)}</div>
+              <div class="log-time">${escapeHtml(formatTime(event.timestamp || ''))}</div>
+            </div>
+            <div class="log-title">${escapeHtml(title)}</div>
+            <div class="log-summary">${escapeHtml(summary)}</div>
+            <div class="log-meta">${escapeHtml(meta.join(' · '))}</div>
+          </div>
+        `;
+      }
+
+      function renderEvents(events) {
+        if (!events.length) {
+          eventList.innerHTML = '<div class="log-empty">启动运行后，这里会实时显示结构化日志。</div>';
+          return;
+        }
+        eventList.innerHTML = events.slice().reverse().map(renderSingleEvent).join('');
+      }
+
+      function prependEvent(event) {
+        if (eventList.querySelector('.log-empty')) {
+          eventList.innerHTML = '';
+        }
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = renderSingleEvent(event);
+        eventList.prepend(wrapper.firstElementChild);
+      }
+
+      function renderPreview(path) {
+        if (!path) {
+          previewBox.innerHTML = `
+            <div class="empty-state">
+              <strong>暂无截图</strong>
+              启动运行后，这里会持续刷新最新浏览器画面。
+            </div>
+          `;
+          screenshotPathText.textContent = '尚未生成 screenshot';
+          openScreenshotLink.style.display = 'none';
+          openScreenshotLink.removeAttribute('href');
+          return;
+        }
+        const bust = `${path}${path.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        previewBox.innerHTML = `<img src="${escapeHtml(bust)}" alt="latest screenshot" />`;
+        screenshotPathText.textContent = path;
+        openScreenshotLink.href = path;
+        openScreenshotLink.style.display = 'inline';
+      }
+
+      async function loadDefaults() {
+        const res = await fetch('/api/defaults');
+        const data = await res.json();
+        urlInput.value = data.default_url || '';
+        scenarioInput.value = data.scenario || '';
+      }
+
+      async function loadLatestRunMeta(preferredRunId = null) {
+        const res = await fetch('/api/runs');
+        const data = await res.json();
+        const runs = data.runs || [];
+        const run = preferredRunId
+          ? runs.find(item => item.run_id === preferredRunId)
+          : runs[0];
+        if (!run) {
+          state.currentRunId = null;
+          runIdText.textContent = '-';
+          runUrlText.textContent = urlInput.value || '-';
+          setStatus('idle', '等待启动');
+          return null;
+        }
+        state.currentRunId = run.run_id;
+        runIdText.textContent = run.run_id || '-';
+        runUrlText.textContent = run.url || '-';
+        setStatus(run.status || 'idle', `${run.status || 'idle'} · ${run.url || ''}`.trim());
+        return run;
+      }
+
+      async function loadManifest(runId) {
+        try {
+          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/manifest`);
+          if (!res.ok) throw new Error('manifest not ready');
+          const manifest = await res.json();
+          const artifacts = Array.isArray(manifest.artifacts) ? manifest.artifacts : [];
+          const latestScreenshot = [...artifacts].reverse().find(item => item.type === 'screenshot');
+          renderPreview(latestScreenshot ? latestScreenshot.path : null);
+        } catch {
+          renderPreview(null);
+        }
+      }
+
+      async function loadEvents(runId) {
+        try {
+          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/events`);
+          const data = await res.json();
+          renderEvents(data.events || []);
+        } catch {
+          renderEvents([]);
+        }
+      }
+
+      async function loadReportIntoLogs(runId) {
+        try {
+          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/report`);
+          if (!res.ok) return;
+          const report = await res.text();
+          if (!report || report === state.latestReport) return;
+          state.latestReport = report;
+          prependEvent({
+            id: 'report',
+            channel: 'system',
+            mode: 'report',
+            timestamp: new Date().toISOString(),
+            summary: report,
+          });
+        } catch {
+          // ignore
+        }
+      }
+
+      function closeStream() {
+        if (state.eventSource) {
+          state.eventSource.close();
+          state.eventSource = null;
+        }
+      }
+
+      function attachStream(runId) {
+        closeStream();
+        state.eventSource = new EventSource(`/api/run/${encodeURIComponent(runId)}/stream`);
+        state.eventSource.onmessage = async (message) => {
+          const event = JSON.parse(message.data);
+          prependEvent(event);
+          if (event.channel === 'system' && event.payload) {
+            const payload = event.payload || {};
+            if (payload.run_id) runIdText.textContent = payload.run_id;
+            if (payload.url) runUrlText.textContent = payload.url;
+            if (event.mode === 'start') setStatus('running', '正在执行测试');
+            if (event.mode === 'error') setStatus('failed', event.summary || '运行失败');
+            if (event.mode === 'complete' || event.mode === 'status') setStatus('completed', '测试完成');
+          }
+          await loadManifest(runId);
+          if (event.mode === 'complete' || event.mode === 'status' || event.mode === 'error') {
+            await loadLatestRunMeta(runId);
+            await loadReportIntoLogs(runId);
+          }
+        };
+        state.eventSource.onerror = () => {
+          closeStream();
+        };
+      }
+
+      async function hydrateRun(runId) {
+        if (!runId) return;
+        state.latestReport = null;
+        await loadLatestRunMeta(runId);
+        await Promise.all([
+          loadManifest(runId),
+          loadEvents(runId),
+          loadReportIntoLogs(runId),
+        ]);
+        attachStream(runId);
+      }
+
+      async function startRun() {
+        startBtn.disabled = true;
+        startBtn.textContent = '启动中...';
+        state.latestReport = null;
+        renderEvents([]);
+        renderPreview(null);
+        setStatus('queued', '正在创建运行');
+
+        try {
+          const res = await fetch('/api/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: urlInput.value.trim(),
+              scenario: scenarioInput.value,
+            }),
+          });
+          const data = await res.json();
+          const runId = data.run && data.run.run_id;
+          hint.textContent = '运行已启动，正在实时接收日志和截图。';
+          await hydrateRun(runId);
+        } catch (error) {
+          setStatus('failed', '启动失败');
+          hint.textContent = `启动失败：${error}`;
+        } finally {
+          startBtn.disabled = false;
+          startBtn.textContent = '启动运行';
+        }
+      }
+
+      async function bootstrap() {
+        await loadDefaults();
+        const latest = await loadLatestRunMeta();
+        if (latest && (latest.status === 'running' || latest.status === 'queued')) {
+          hint.textContent = '已自动连接到当前正在执行的 run。';
+          await hydrateRun(latest.run_id);
+        } else {
+          renderPreview(null);
+          renderEvents([]);
+        }
+      }
+
+      startBtn.addEventListener('click', startRun);
+      resetBtn.addEventListener('click', async () => {
+        closeStream();
+        state.currentRunId = null;
+        state.latestReport = null;
+        await loadDefaults();
+        runIdText.textContent = '-';
+        runUrlText.textContent = urlInput.value || '-';
+        setStatus('idle', '等待启动');
+        renderPreview(null);
+        renderEvents([]);
+        hint.textContent = '支持模糊描述，也支持结构化 JSON steps。';
+      });
+
+      bootstrap();
+    </script>
+  </body>
+</html>

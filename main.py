@@ -7,12 +7,9 @@ import os
 import subprocess
 import sys
 
-from agent import build_agent, resolve_playwright_cli
-from artifacts import ensure_manifest, update_manifest_target_url
 from config import get_default_url, init_env, load_scenario
-from output import extract_text, print_stream_event, final_result_from_state
-from prompts import build_prompt
-from run_context import create_run_context
+from output import format_event_for_cli
+from runner import prepare_run, execute_prepared_run
 
 
 # ── UTF-8 运行时修补（Windows 中文环境） ─────────────────────
@@ -56,49 +53,28 @@ def main() -> None:
     raw_scenario = args.scenario or os.getenv("SCENARIO") or os.getenv("STEPS_JSON")
     scenario = load_scenario(raw_scenario)
 
-    run_context = create_run_context()
-    os.environ["RUN_ID"] = run_context.run_id
-    os.environ["OUTPUTS_DIR"] = run_context.run_dir.as_posix()
-    os.environ["MANIFEST_PATH"] = run_context.manifest_path.as_posix()
-    ensure_manifest(run_context.manifest_path, run_id=run_context.run_id, target_url=url)
-    update_manifest_target_url(run_context.manifest_path, run_id=run_context.run_id, target_url=url)
+    prepared = prepare_run(url, scenario)
 
-    prompt = build_prompt(url, scenario, outputs_dir=run_context.run_dir.as_posix())
-    cli_command = resolve_playwright_cli()
-    agent = build_agent()
-    config = {
-        "configurable": {"thread_id": "mvp-web-test-run"},
-        "context": {
-            "run_id": run_context.run_id,
-            "outputs_dir": run_context.run_dir.as_posix(),
-            "manifest_path": run_context.manifest_path.as_posix(),
-            "target_url": url,
-        },
-    }
-
-    scenario_desc = scenario if isinstance(scenario, str) else f"{len(scenario)} 个结构化步骤"
-    print(f"[start] URL: {url}")
-    print(f"[start] 场景: {scenario_desc}")
-    print(f"[start] run_id: {run_context.run_id}")
-    print(f"[start] outputs: {run_context.run_dir.as_posix()}")
-    print(f"[start] playwright-cli: {cli_command}")
+    print(f"[start] URL: {prepared.url}")
+    print(f"[start] 场景: {prepared.scenario_desc}")
+    print(f"[start] run_id: {prepared.run_context.run_id}")
+    print(f"[start] outputs: {prepared.run_context.run_dir.as_posix()}")
+    print(f"[start] playwright-cli: {prepared.cli_command}")
     print("[start] Agent 开始执行...\n")
 
-    final_result = None
-    for chunk in agent.stream(
-        {"messages": [{"role": "user", "content": prompt}]},
-        config=config,
-        stream_mode=["updates"],
-    ):
-        if not isinstance(chunk, tuple):
-            final_result = chunk
-        print_stream_event(chunk, show_full_events=args.show_full_events)
+    def on_event(event: dict[str, object]) -> None:
+        if event.get("channel") == "system":
+            return
+        print(format_event_for_cli(event))
 
-    if final_result is None:
-        final_result = final_result_from_state(agent, config)
+    result = execute_prepared_run(
+        prepared,
+        on_event=on_event,
+        show_full_events=args.show_full_events,
+    )
 
     print("\n===== 最终测试报告 =====\n")
-    print(extract_text(final_result))
+    print(result.final_report)
 
 
 if __name__ == "__main__":

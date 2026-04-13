@@ -58,6 +58,7 @@ Web 端到端测试的方法论与执行流程。
 - 步骤通过的唯一标准是**业务目标达成**，不是命令执行完毕。
 - 对联想框、下拉框、日期控件等复杂组件：操作后必须验证选中值是否正确，不能只依赖 fill。
 - 对联想框、自动补全输入框、候选下拉框：**默认优先鼠标点击候选项，不要默认使用 Enter 确认**。只有在用户明确要求键盘操作，或页面没有可点击候选项时，才考虑 Enter / 方向键。
+- 对 12306 这类城市联想框，**不要把 ArrowDown + Enter 当作默认选择路径**；应优先点击候选项，避免误选或输入框值被页面改写。
 - 对联想候选类组件，优先采用“聚焦 → 输入 → 立即 snapshot / screenshot → 点击候选项 → 再次验证最终值”的节奏，避免因为浮层瞬时消失而误判。
 
 </execution-cycle>
@@ -101,8 +102,8 @@ playwright-cli open / click / type / select 等交互 → 在关键节点使用 
 |------|----------|------|
 | 打开页面 | `playwright-cli` 命令 | 默认直接使用原生命令，保持交互灵活性 |
 | 点击 / 输入 / 选择 / 导航 | `playwright-cli` 命令 | 默认直接使用原生命令，不优先走自定义封装 |
-| 页面结构快照 | `capture_snapshot` | 原始结果自动落盘到 outputs，并只返回轻量摘要 + 路径 |
-| 页面截图 | `capture_screenshot` | 图片保存到 outputs，并返回路径 |
+| 页面结构快照 | `capture_snapshot` | 原始 snapshot 自动落盘到 outputs，且默认会同步保存一张截图；返回结果里会带 snapshot / screenshot 路径 |
+| 页面截图 | `capture_screenshot` | 仅在 agent 判断需要额外截图时主动调用，图片保存到 outputs，并返回路径 |
 | 额外细节检查 | 文件系统工具 | 用 `read_file / glob / grep / ls` 按需查看 artifact |
 
 大体量证据处理规则：
