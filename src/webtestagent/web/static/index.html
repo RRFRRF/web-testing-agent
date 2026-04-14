@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MVP Deep Agents 鎺у埗鍙?/title>
+    <title>MVP Deep Agents 控制台</title>
     <style>
       :root {
         color-scheme: dark;
@@ -383,6 +383,16 @@
           min-height: 320px;
         }
       }
+
+      .session-options { margin-top: 0.5rem; }
+      .session-options summary { cursor: pointer; font-size: 0.82rem; color: var(--text-muted, #888); user-select: none; }
+      .session-checks { display: flex; gap: 1.2rem; }
+      .session-checks label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; cursor: pointer; }
+    
+      .session-options { margin-top: 0.5rem; }
+      .session-options summary { cursor: pointer; font-size: 0.82rem; color: var(--muted); user-select: none; }
+      .session-checks { display: flex; gap: 1.2rem; }
+      .session-checks label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; cursor: pointer; }
     </style>
   </head>
   <body>
@@ -391,26 +401,40 @@
         <div class="panel-header">
           <div>
             <div class="panel-title">Scenario</div>
-            <div class="panel-subtitle">閰嶇疆 URL 鍜屾祴璇曞満鏅紝鐩存帴鍚姩褰撳墠杩愯</div>
+            <div class="panel-subtitle">配置 URL 和测试场景，直接启动当前运行</div>
           </div>
         </div>
         <div class="panel-body stack">
           <div>
-            <label for="url">鐩爣 URL</label>
+            <label for="url">目标 URL</label>
             <input id="url" placeholder="https://..." />
           </div>
 
           <div>
-            <label for="scenario">娴嬭瘯鍦烘櫙</label>
-            <textarea id="scenario" placeholder="杈撳叆妯＄硦鍦烘櫙鎻忚堪锛屾垨 JSON steps 鏁扮粍"></textarea>
+            <label for="scenario">测试场景</label>
+            <textarea id="scenario" placeholder="输入模糊场景描述，或 JSON steps 数组"></textarea>
           </div>
+
+          <details class="session-options">
+            <summary>登录态持久化（可选）</summary>
+            <div class="stack" style="margin-top:0.75rem">
+              <div class="session-checks">
+                <label><input type="checkbox" id="autoLoad" /> 自动导入登录态</label>
+                <label><input type="checkbox" id="autoSave" /> 自动保存登录态</label>
+              </div>
+              <div>
+                <label for="sessionAccountId">账号标识（可选，多账号时区分）</label>
+                <input id="sessionAccountId" placeholder="如 alice" />
+              </div>
+            </div>
+          </details>
 
           <div class="actions">
-            <button id="startBtn" class="primary">鍚姩杩愯</button>
-            <button id="resetBtn" class="secondary">閲嶇疆</button>
+            <button id="startBtn" class="primary">启动运行</button>
+            <button id="resetBtn" class="secondary">重置</button>
           </div>
 
-          <div id="hint" class="panel-subtitle">鏀寔妯＄硦鎻忚堪锛屼篃鏀寔缁撴瀯鍖?JSON steps銆?/div>
+          <div id="hint" class="panel-subtitle">支持模糊描述，也支持结构化 JSON steps。</div>
 
           <div class="status-card">
             <div class="status-row">
@@ -422,12 +446,12 @@
                 <strong id="runIdText">-</strong>
               </div>
               <div class="meta-item">
-                <span>褰撳墠 URL</span>
+                <span>当前 URL</span>
                 <strong id="runUrlText">-</strong>
               </div>
               <div class="meta-item">
-                <span>鐘舵€佽鏄?/span>
-                <strong id="runStatusText">绛夊緟鍚姩</strong>
+                <span>状态说明</span>
+                <strong id="runStatusText">等待启动</strong>
               </div>
             </div>
           </div>
@@ -437,42 +461,37 @@
       <section class="panel">
         <div class="panel-header">
           <div>
-            <div class="panel-title">瀹炴椂鎴浘</div>
-            <div class="panel-subtitle">鑷姩璺熼殢鏈€鏂?screenshot 鏇存柊</div>
+            <div class="panel-title">实时截图</div>
+            <div class="panel-subtitle">自动跟随最新 screenshot 更新</div>
           </div>
         </div>
         <div class="preview-shell">
           <div id="previewBox" class="preview-stage">
             <div class="empty-state">
-              <strong>鏆傛棤鎴浘</strong>
-              鍚姩杩愯鍚庯紝杩欓噷浼氭寔缁埛鏂版渶鏂版祻瑙堝櫒鐢婚潰銆?            </div>
+              <strong>暂无截图</strong>
+              启动运行后，这里会持续刷新最新浏览器画面。
+            </div>
           </div>
           <div class="screenshot-meta">
-            <span id="screenshotPathText">灏氭湭鐢熸垚 screenshot</span>
-            <a id="openScreenshotLink" href="#" target="_blank" style="display:none">鎵撳紑鍘熷浘</a>
+            <a id="openScreenshotLink" href="#" target="_blank" style="display:none">打开原图</a>
           </div>
         </div>
       </section>
 
-      <section class="panel logs">
+      <section class="panel">
         <div class="panel-header">
           <div>
-            <div class="panel-title">鏃ュ織杈撳嚭</div>
-            <div class="panel-subtitle">鏇寸洿瑙傚湴鐪?agent銆乼ools 涓庣粨鏋滆緭鍑?/div>
+            <div class="panel-title">日志输出</div>
+            <div class="panel-subtitle">更直观地看 agent、tools 与结果输出</div>
           </div>
         </div>
         <div id="eventList" class="log-list">
-          <div class="log-empty">鍚姩杩愯鍚庯紝杩欓噷浼氬疄鏃舵樉绀虹粨鏋勫寲鏃ュ織銆?/div>
+          <div class="log-empty">启动运行后，这里会实时显示结构化日志。</div>
         </div>
       </section>
     </div>
 
     <script>
-      const state = {
-        currentRunId: null,
-        eventSource: null,
-        latestReport: null,
-      };
 
       const urlInput = document.getElementById('url');
       const scenarioInput = document.getElementById('scenario');
@@ -484,137 +503,97 @@
       const runUrlText = document.getElementById('runUrlText');
       const runStatusText = document.getElementById('runStatusText');
       const previewBox = document.getElementById('previewBox');
-      const screenshotPathText = document.getElementById('screenshotPathText');
       const openScreenshotLink = document.getElementById('openScreenshotLink');
       const eventList = document.getElementById('eventList');
 
-      function escapeHtml(text) {
-        return String(text ?? '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
-      }
+      const state = { currentRunId: null, eventSource: null, screenshotTimer: null, lastScreenshotPath: null };
 
-      function setStatus(status, message) {
-        const normalized = ['running', 'completed', 'failed', 'queued', 'archived'].includes(status) ? status : 'idle';
-        statusPill.className = `status-pill status-${normalized}`;
-        statusPill.textContent = normalized;
-        runStatusText.textContent = message || normalized;
+      function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
       }
 
       function formatTime(value) {
         if (!value) return '';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleTimeString('zh-CN', { hour12: false });
+        try {
+          const d = new Date(value);
+          return d.toLocaleTimeString('zh-CN', { hour12: false });
+        } catch { return value; }
+      }
+
+      function setStatus(status, text) {
+        statusPill.className = 'status-pill status-' + status;
+        statusPill.textContent = status;
+        runStatusText.textContent = text || status;
       }
 
       function classifyEvent(event) {
-        if (event.mode === 'report') {
-          return { dot: 'dot-report', kind: '缁撴灉鎽樿' };
-        }
-        if (event.channel === 'system') {
-          return { dot: 'dot-system', kind: '绯荤粺' };
-        }
-        if (event.node === 'model') {
-          return { dot: 'dot-agent', kind: 'Agent' };
-        }
-        if (event.node === 'tools') {
-          return { dot: 'dot-tools', kind: 'Tools' };
-        }
-        return { dot: 'dot-other', kind: event.node || event.channel || '浜嬩欢' };
+        const ch = event.channel || '';
+        const mode = event.mode || '';
+        if (ch === 'system' && mode === 'report') return { dot: 'dot-report', kind: '结果摘要' };
+        if (ch === 'system') return { dot: 'dot-system', kind: 'system' };
+        if (ch === 'model') return { dot: 'dot-model', kind: 'model' };
+        if (ch === 'tools') return { dot: 'dot-tools', kind: 'tools' };
+        return { dot: '', kind: ch || 'event' };
       }
 
-      function summarizeTitle(event) {
-        if (event.mode === 'report') return '娴嬭瘯瀹屾垚鍚庣殑缁撴灉鎽樿';
+      function summarizeEvent(event) {
+        const summary = event.summary || '';
+        const mode = event.mode || '';
         if (event.channel === 'system') {
-          if (event.mode === 'start') return '杩愯寮€濮?;
-          if (event.mode === 'complete') return '杩愯瀹屾垚';
-          if (event.mode === 'error') return '杩愯澶辫触';
-          return '绯荤粺鐘舵€?;
+          if (mode === 'report') return '测试完成后的结果摘要';
+          if (mode === 'complete') return '运行完成';
+          if (mode === 'session-save') return summary;
+          return '系统状态';
         }
-
-        const summary = String(event.summary || '');
-        if (summary.startsWith('tool_calls:')) return 'Agent 姝ｅ湪鍐冲畾涓嬩竴姝ュ姩浣?;
-        if (summary.includes('artifact saved') || (summary.startsWith('{') && summary.includes('"snapshot"'))) return '璇佹嵁宸茶惤鐩?;
-        if (summary === '<no output> [Command succeeded with exit code 0]') return '椤甸潰鎿嶄綔宸插畬鎴?;
-        if (summary.startsWith('No matches found')) return '鎼滅储缁撴灉';
-        if (event.node === 'model') return 'Agent 杈撳嚭';
-        if (event.node === 'tools') return '宸ュ叿鎵ц缁撴灉';
-        return '杩愯浜嬩欢';
+        return summary.length > 200 ? summary.slice(0, 200) + '...' : summary;
       }
 
-      function prettifySummary(event) {
-        const raw = String(event.summary || '').trim();
-        if (!raw) return '锛堢┖锛?;
+      function detailForEvent(event) {
+        const summary = event.summary || '';
+        const raw = summary;
+        const node = event.node || '';
+        const toolName = event.tool_name || '';
 
-        if (event.channel === 'system') {
-          return raw;
+        if (event.channel === 'tools') {
+          if (summary.includes('artifact saved') || (summary.startsWith('{') && summary.includes('"snapshot"'))) return '证据已落盘';
+          if (summary === '<no output> [Command succeeded with exit code 0]') return '页面操作已完成';
+          if (summary.startsWith('No matches found')) return '搜索结果';
+          if (node === 'model') return 'Agent 输出';
         }
 
-        if (raw.startsWith('tool_calls:')) {
-          const toolNames = raw.replace('tool_calls:', '').split(',').map(x => x.trim()).filter(Boolean);
-          const toolMap = {
-            execute: '椤甸潰鎿嶄綔',
-            read_file: '璇诲彇浜х墿鏂囦欢',
-            grep: '鎼滅储璇佹嵁',
-            capture_snapshot: '閲囬泦椤甸潰蹇収',
-            capture_screenshot: '棰濆鎴浘',
-            ls: '鏌ョ湅鐩綍',
-            glob: '鏌ユ壘鏂囦欢',
-          };
-          const translated = toolNames.map(name => toolMap[name] || name);
-          return `鍑嗗璋冪敤锛?{translated.join('銆?)}`;
-        }
+        const toolLabels = {
+          read_file: '读取产物文件',
+          write_file: '写入文件',
+          capture_snapshot: '采集页面快照',
+          capture_screenshot: '额外截图',
+          ls: '查看目录',
+          glob: '查找文件',
+        };
+        if (toolName && toolLabels[toolName]) return toolLabels[toolName];
 
-        if (raw === '<no output> [Command succeeded with exit code 0]') {
-          return '椤甸潰鎿嶄綔鎵ц鎴愬姛銆?;
+        if (event.channel === 'tools') {
+          if (raw.includes('[Command succeeded with exit code 0]')) return '页面操作执行成功。';
+          if (raw.startsWith('No matches found')) return '未搜索到匹配内容。';
+          if (raw.includes('type: snapshot') && raw.includes('type: screenshot')) return '已保存页面快照，并自动补充了一张对应截图。';
+          if (raw.includes('type: snapshot')) return '已保存页面快照。';
+          if (raw.includes('type: screenshot')) return '已保存页面截图。';
+          if (raw.includes('playwright-cli') || raw.includes('browser_action')) return 'Playwright 页面操作已执行完成。';
+          if (toolName === 'read_file' && raw.includes('snapshot')) return '已读取页面快照片段，正在检查页面状态。';
+          if (toolName === 'read_file') return '已读取产物文件内容，正在分析页面细节。';
         }
-
-        if (raw.startsWith('No matches found')) {
-          return '鏈悳绱㈠埌鍖归厤鍐呭銆?;
-        }
-
-        if (raw.startsWith('{') && raw.includes('"snapshot"') && raw.includes('"screenshot"')) {
-          return '宸蹭繚瀛橀〉闈㈠揩鐓э紝骞惰嚜鍔ㄨˉ鍏呬簡涓€寮犲搴旀埅鍥俱€?;
-        }
-
-        if (raw.includes('artifact saved')) {
-          if (raw.includes('type: snapshot')) return '宸蹭繚瀛橀〉闈㈠揩鐓с€?;
-          if (raw.includes('type: screenshot')) return '宸蹭繚瀛橀〉闈㈡埅鍥俱€?;
-          return '宸蹭繚瀛樻柊鐨勮繍琛屼骇鐗┿€?;
-        }
-
-        if (event.node === 'tools' && raw.includes('### Ran Playwright code')) {
-          return 'Playwright 椤甸潰鎿嶄綔宸叉墽琛屽畬鎴愩€?;
-        }
-
-        if (event.node === 'tools' && raw.includes('textbox') && raw.includes('[ref=')) {
-          return '宸茶鍙栭〉闈㈠揩鐓х墖娈碉紝姝ｅ湪妫€鏌ラ〉闈㈢姸鎬併€?;
-        }
-
-        if (event.node === 'tools' && raw.match(/^\d+\s*-\s+/)) {
-          return '宸茶鍙栦骇鐗╂枃浠跺唴瀹癸紝姝ｅ湪鍒嗘瀽椤甸潰缁嗚妭銆?;
-        }
-
-        if (event.mode === 'report') {
-          const compact = raw.split('\n').filter(Boolean).slice(0, 8).join('\n');
-          return compact;
-        }
-
-        return raw;
+        return '';
       }
 
-      function renderSingleEvent(event) {
+      function renderEvent(event) {
         const info = classifyEvent(event);
-        const title = summarizeTitle(event);
-        const summary = prettifySummary(event);
+        const title = detailForEvent(event);
+        const summary = summarizeEvent(event);
         const meta = [];
-        if (event.id) meta.push(`#${event.id}`);
+        if (event.tool_name) meta.push(event.tool_name);
         if (event.node) meta.push(event.node);
-        if (event.mode && event.mode !== 'updates') meta.push(event.mode);
+        if (event.run_id) meta.push(event.run_id);
 
         return `
           <div class="log-entry ${event.mode === 'report' ? 'report-card' : ''}">
@@ -624,45 +603,28 @@
             </div>
             <div class="log-title">${escapeHtml(title)}</div>
             <div class="log-summary">${escapeHtml(summary)}</div>
-            <div class="log-meta">${escapeHtml(meta.join(' 路 '))}</div>
-          </div>
-        `;
+            <div class="log-meta">${escapeHtml(meta.join(' \u00b7 '))}</div>
+          </div>`;
       }
 
-      function renderEvents(events) {
-        if (!events.length) {
-          eventList.innerHTML = '<div class="log-empty">鍚姩杩愯鍚庯紝杩欓噷浼氬疄鏃舵樉绀虹粨鏋勫寲鏃ュ織銆?/div>';
-          return;
-        }
-        eventList.innerHTML = events.slice().reverse().map(renderSingleEvent).join('');
+      function clearEvents() {
+        eventList.innerHTML = '<div class="log-empty">启动运行后，这里会实时显示结构化日志。</div>';
       }
 
-      function prependEvent(event) {
-        if (eventList.querySelector('.log-empty')) {
-          eventList.innerHTML = '';
-        }
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = renderSingleEvent(event);
-        eventList.prepend(wrapper.firstElementChild);
+      function appendEvent(event) {
+        if (eventList.querySelector('.log-empty')) eventList.innerHTML = '';
+        eventList.insertAdjacentHTML('beforeend', renderEvent(event));
+        eventList.scrollTop = eventList.scrollHeight;
       }
 
-      function renderPreview(path) {
-        if (!path) {
-          previewBox.innerHTML = `
-            <div class="empty-state">
-              <strong>鏆傛棤鎴浘</strong>
-              鍚姩杩愯鍚庯紝杩欓噷浼氭寔缁埛鏂版渶鏂版祻瑙堝櫒鐢婚潰銆?            </div>
-          `;
-          screenshotPathText.textContent = '灏氭湭鐢熸垚 screenshot';
-          openScreenshotLink.style.display = 'none';
-          openScreenshotLink.removeAttribute('href');
-          return;
-        }
-        const bust = `${path}${path.includes('?') ? '&' : '?'}t=${Date.now()}`;
-        previewBox.innerHTML = `<img src="${escapeHtml(bust)}" alt="latest screenshot" />`;
-        screenshotPathText.textContent = path;
-        openScreenshotLink.href = path;
-        openScreenshotLink.style.display = 'inline';
+      function resetPreview() {
+        previewBox.innerHTML = `
+          <div class="empty-state">
+            <strong>暂无截图</strong>
+            启动运行后，这里会持续刷新最新浏览器画面。
+          </div>`;
+        openScreenshotLink.style.display = 'none';
+        state.lastScreenshotPath = null;
       }
 
       async function loadDefaults() {
@@ -670,6 +632,11 @@
         const data = await res.json();
         urlInput.value = data.default_url || '';
         scenarioInput.value = data.scenario || '';
+        if (data.session) {
+          document.getElementById('autoLoad').checked = !!data.session.auto_load;
+          document.getElementById('autoSave').checked = !!data.session.auto_save;
+          document.getElementById('sessionAccountId').value = data.session.account_id || '';
+        }
       }
 
       async function loadLatestRunMeta(preferredRunId = null) {
@@ -683,159 +650,128 @@
           state.currentRunId = null;
           runIdText.textContent = '-';
           runUrlText.textContent = urlInput.value || '-';
-          setStatus('idle', '绛夊緟鍚姩');
+          setStatus('idle', '等待启动');
           return null;
         }
         state.currentRunId = run.run_id;
-        runIdText.textContent = run.run_id || '-';
+        runIdText.textContent = run.run_id;
         runUrlText.textContent = run.url || '-';
-        setStatus(run.status || 'idle', `${run.status || 'idle'} 路 ${run.url || ''}`.trim());
+        setStatus(run.status || 'idle', `${run.status || 'idle'} \u00b7 ${run.url || ''}`.trim());
         return run;
       }
 
-      async function loadManifest(runId) {
+      async function pollScreenshot() {
+        if (!state.currentRunId) return;
         try {
-          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/manifest`);
-          if (!res.ok) throw new Error('manifest not ready');
-          const manifest = await res.json();
-          const artifacts = Array.isArray(manifest.artifacts) ? manifest.artifacts : [];
-          const latestScreenshot = [...artifacts].reverse().find(item => item.type === 'screenshot');
-          renderPreview(latestScreenshot ? latestScreenshot.path : null);
-        } catch {
-          renderPreview(null);
-        }
-      }
-
-      async function loadEvents(runId) {
-        try {
-          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/events`);
+          const res = await fetch(`/api/runs/${state.currentRunId}/latest-screenshot`);
           const data = await res.json();
-          renderEvents(data.events || []);
-        } catch {
-          renderEvents([]);
-        }
-      }
-
-      async function loadReportIntoLogs(runId) {
-        try {
-          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/report`);
-          if (!res.ok) return;
-          const report = await res.text();
-          if (!report || report === state.latestReport) return;
-          state.latestReport = report;
-          prependEvent({
-            id: 'report',
-            channel: 'system',
-            mode: 'report',
-            timestamp: new Date().toISOString(),
-            summary: report,
-          });
-        } catch {
-          // ignore
-        }
-      }
-
-      function closeStream() {
-        if (state.eventSource) {
-          state.eventSource.close();
-          state.eventSource = null;
-        }
-      }
-
-      function attachStream(runId) {
-        closeStream();
-        state.eventSource = new EventSource(`/api/run/${encodeURIComponent(runId)}/stream`);
-        state.eventSource.onmessage = async (message) => {
-          const event = JSON.parse(message.data);
-          prependEvent(event);
-          if (event.channel === 'system' && event.payload) {
-            const payload = event.payload || {};
-            if (payload.run_id) runIdText.textContent = payload.run_id;
-            if (payload.url) runUrlText.textContent = payload.url;
-            if (event.mode === 'start') setStatus('running', '姝ｅ湪鎵ц娴嬭瘯');
-            if (event.mode === 'error') setStatus('failed', event.summary || '杩愯澶辫触');
-            if (event.mode === 'complete' || event.mode === 'status') setStatus('completed', '娴嬭瘯瀹屾垚');
+          if (data.path && data.path !== state.lastScreenshotPath) {
+            state.lastScreenshotPath = data.path;
+            const ts = Date.now();
+            previewBox.innerHTML = `<img src="${data.path}?t=${ts}" alt="screenshot" style="width:100%;border-radius:12px" />`;
+            openScreenshotLink.href = data.path;
+            openScreenshotLink.style.display = 'inline';
           }
-          await loadManifest(runId);
-          if (event.mode === 'complete' || event.mode === 'status' || event.mode === 'error') {
-            await loadLatestRunMeta(runId);
-            await loadReportIntoLogs(runId);
-          }
-        };
-        state.eventSource.onerror = () => {
-          closeStream();
-        };
+        } catch {}
+      }
+
+      function startScreenshotPolling() {
+        stopScreenshotPolling();
+        pollScreenshot();
+        state.screenshotTimer = setInterval(pollScreenshot, 3000);
+      }
+
+      function stopScreenshotPolling() {
+        if (state.screenshotTimer) {
+          clearInterval(state.screenshotTimer);
+          state.screenshotTimer = null;
+        }
+      }
+
+      function connectSSE(runId) {
+        if (state.eventSource) { state.eventSource.close(); state.eventSource = null; }
+        const es = new EventSource(`/api/run/${runId}/stream`);
+        state.eventSource = es;
+        es.addEventListener('message', (e) => {
+          try {
+            const event = JSON.parse(e.data);
+            appendEvent(event);
+            if (event.channel === 'system') {
+              if (event.mode === 'start') setStatus('running', '正在执行测试');
+              if (event.mode === 'error') setStatus('failed', event.summary || '运行失败');
+              if (event.mode === 'complete' || event.mode === 'status') setStatus('completed', '测试完成');
+            }
+          } catch {}
+        });
+        es.onerror = () => { es.close(); state.eventSource = null; stopScreenshotPolling(); pollScreenshot(); };
       }
 
       async function hydrateRun(runId) {
         if (!runId) return;
-        state.latestReport = null;
-        await loadLatestRunMeta(runId);
-        await Promise.all([
-          loadManifest(runId),
-          loadEvents(runId),
-          loadReportIntoLogs(runId),
-        ]);
-        attachStream(runId);
+        state.currentRunId = runId;
+        runIdText.textContent = runId;
+        clearEvents();
+        resetPreview();
+        startScreenshotPolling();
+        connectSSE(runId);
       }
 
-      async function startRun() {
-        startBtn.disabled = true;
-        startBtn.textContent = '鍚姩涓?..';
-        state.latestReport = null;
-        renderEvents([]);
-        renderPreview(null);
-        setStatus('queued', '姝ｅ湪鍒涘缓杩愯');
-
+      startBtn.addEventListener('click', async () => {
         try {
+          startBtn.disabled = true;
+          startBtn.textContent = '启动中...';
+          clearEvents();
+          resetPreview();
+          setStatus('queued', '正在创建运行');
+
           const res = await fetch('/api/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               url: urlInput.value.trim(),
               scenario: scenarioInput.value,
+              session: {
+                auto_load: document.getElementById('autoLoad').checked,
+                auto_save: document.getElementById('autoSave').checked,
+                account_id: document.getElementById('sessionAccountId').value.trim() || null,
+              },
             }),
           });
           const data = await res.json();
           const runId = data.run && data.run.run_id;
-          hint.textContent = '杩愯宸插惎鍔紝姝ｅ湪瀹炴椂鎺ユ敹鏃ュ織鍜屾埅鍥俱€?;
+          hint.textContent = '运行已启动，正在实时接收日志和截图。';
           await hydrateRun(runId);
         } catch (error) {
-          setStatus('failed', '鍚姩澶辫触');
-          hint.textContent = `鍚姩澶辫触锛?{error}`;
+          setStatus('failed', '启动失败');
+          hint.textContent = `启动失败：${error}`;
         } finally {
           startBtn.disabled = false;
-          startBtn.textContent = '鍚姩杩愯';
+          startBtn.textContent = '启动运行';
         }
-      }
-
-      async function bootstrap() {
-        await loadDefaults();
-        const latest = await loadLatestRunMeta();
-        if (latest && (latest.status === 'running' || latest.status === 'queued')) {
-          hint.textContent = '宸茶嚜鍔ㄨ繛鎺ュ埌褰撳墠姝ｅ湪鎵ц鐨?run銆?;
-          await hydrateRun(latest.run_id);
-        } else {
-          renderPreview(null);
-          renderEvents([]);
-        }
-      }
-
-      startBtn.addEventListener('click', startRun);
-      resetBtn.addEventListener('click', async () => {
-        closeStream();
-        state.currentRunId = null;
-        state.latestReport = null;
-        await loadDefaults();
-        runIdText.textContent = '-';
-        runUrlText.textContent = urlInput.value || '-';
-        setStatus('idle', '绛夊緟鍚姩');
-        renderPreview(null);
-        renderEvents([]);
-        hint.textContent = '鏀寔妯＄硦鎻忚堪锛屼篃鏀寔缁撴瀯鍖?JSON steps銆?;
       });
 
-      bootstrap();
+      resetBtn.addEventListener('click', () => {
+        if (state.eventSource) { state.eventSource.close(); state.eventSource = null; }
+        stopScreenshotPolling();
+        state.currentRunId = null;
+        clearEvents();
+        resetPreview();
+        runIdText.textContent = '-';
+        runUrlText.textContent = urlInput.value || '-';
+        setStatus('idle', '等待启动');
+        loadDefaults();
+        hint.textContent = '支持模糊描述，也支持结构化 JSON steps。';
+      });
+
+      (async () => {
+        await loadDefaults();
+        const run = await loadLatestRunMeta();
+        if (run && run.status === 'running') {
+          hint.textContent = '已自动连接到当前正在执行的 run。';
+          await hydrateRun(run.run_id);
+        }
+      })();
+
     </script>
   </body>
 </html>

@@ -47,6 +47,24 @@ def _default_manifest(*, run_id: str, target_url: str | None = None) -> dict[str
         "run_id": run_id,
         "created_at": _now_iso(),
         "target_url": target_url or "",
+        "session": {
+            "site_id": "",
+            "account_id": "",
+            "storage_mode": "state",
+            "auto_load": False,
+            "auto_save": False,
+            "resolved_by": "",
+            "load": {
+                "attempted": False,
+                "applied": False,
+                "message": "",
+            },
+            "save": {
+                "attempted": False,
+                "succeeded": False,
+                "message": "",
+            },
+        },
         "artifacts": [],
     }
 

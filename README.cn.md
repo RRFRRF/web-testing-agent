@@ -2,7 +2,7 @@
 
 中文 | [English](README.md)
 
-一个基于 Deep Agents 的最小化 Web 自动测试 MVP：Agent 能根据模糊场景或结构化步骤，在真实浏览器中执行 E2E 测试，自动把快照/截图等大体量证据落盘，并同时提供 CLI 与本地 Web 控制台两种使用方式。
+一个基于 Deep Agents 的最小化 Web 自动测试 MVP：Agent 能根据模糊场景或结构化步骤，在真实浏览器中执行 E2E 测试，自动把快照/截图等大体量证据落盘，并支持基于 Playwright storage state 的登录态复用，同时提供 CLI 与本地 Web 控制台两种使用方式。
 
 ## 功能特性
 
@@ -14,6 +14,8 @@
   - 额外保存一张配套 screenshot
   - 返回包含 snapshot/screenshot 路径的 JSON
 - 其余页面交互默认优先走 `playwright-cli` 原生命令，避免过度封装让 agent 变笨
+- 支持基于 `playwright-cli state-load` / `state-save` 的**登录态持久化**
+- 复用登录态统一存放在 `cookies/{site_id}/{account_id}/state.json`，不会暴露到 `outputs/`
 - 运行产物统一落盘到 `outputs/{run_id}/...`
 - 内置本地 Web 控制台，可实时查看：
   - 当前 scenario
@@ -28,11 +30,12 @@
 │  ├─ config/                 # 环境变量、路径、场景加载
 │  │  ├─ settings.py
 │  │  └─ scenarios.py
-│  ├─ core/                   # Agent 构建、运行核心、artifacts、运行上下文
+│  ├─ core/                   # Agent 构建、运行核心、artifacts、运行上下文、登录态持久化
 │  │  ├─ agent_builder.py
 │  │  ├─ runner.py
 │  │  ├─ run_context.py
-│  │  └─ artifacts.py
+│  │  ├─ artifacts.py
+│  │  └─ session.py
 │  ├─ tools/                  # 浏览器工具封装
 │  │  └─ browser_tools.py
 │  ├─ prompts/                # system prompt 与 user prompt 定义
@@ -52,6 +55,7 @@
 ├─ scenarios/                 # 场景配置文件
 │  └─ default.json
 ├─ tests/                     # 测试目录（进行中）
+├─ cookies/                   # 可复用的 Playwright 登录态（已被 git 忽略）
 └─ outputs/                   # 每次运行的 artifacts（已被 git 忽略）
 ```
 
@@ -76,6 +80,11 @@
 - `SCENARIO`：默认模糊场景
 - `STEPS_JSON`：结构化步骤 JSON
 - `WEBAPP_PORT`：Web 控制台端口，默认 `8765`
+- `AUTO_LOAD_SESSION`：是否在 run 前自动导入登录态
+- `AUTO_SAVE_SESSION`：是否在 run 后自动保存登录态
+- `SESSION_SITE_ID`：显式指定登录态站点标识
+- `SESSION_ACCOUNT_ID`：显式指定账号标识
+- `SESSION_DIR`：覆盖默认登录态目录（默认 `cookies/`）
 
 建议在项目根目录创建 `.env`：
 
@@ -164,11 +173,42 @@ uv run webtestagent --scenario '[
 ]'
 ```
 
-### 查看完整流式事件
+### 登录态持久化
 
 ```bash
-uv run webtestagent --show-full-events
+# 运行结束后自动保存当前浏览器登录态
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-save-session
 ```
+
+```bash
+# 运行前自动导入之前保存过的登录态
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session
+```
+
+```bash
+# 同一次 run 里同时启用自动导入和自动保存
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session --auto-save-session
+```
+
+```bash
+# 多账号站点可显式指定账号标识
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session --session-account-id alice
+```
+
+登录态文件不会写进 `outputs/`，而是单独存放在：
+
+```text
+cookies/{site_id}/{account_id}/state.json
+cookies/{site_id}/{account_id}/meta.json
+```
+
+登录态配置优先级：
+
+1. CLI 参数，如 `--auto-load-session`
+2. 环境变量，如 `AUTO_LOAD_SESSION`
+3. `scenarios/default.json` 里的 `session` 配置块
+4. 内建默认值
+
 
 ## Web 控制台用法
 

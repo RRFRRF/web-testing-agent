@@ -26,5 +26,12 @@
       "type": "Outcome",
       "text": "页面应出现车次搜索结果、余票列表，或进入包含查询结果的页面"
     }
-  ]
+  ],
+  "session": {
+    "auto_load": false,
+    "auto_save": false,
+    "site_id": null,
+    "account_id": null,
+    "storage_dir": null
+  }
 }

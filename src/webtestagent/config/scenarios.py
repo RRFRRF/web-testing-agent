@@ -94,3 +94,9 @@ def load_scenario(raw_input: str | None) -> str | list[dict[str, str]]:
 
     # fallback 到 steps 字段（结构化步骤）
     return build_default_steps()
+
+
+def load_session_defaults() -> dict[str, Any]:
+    """从 scenarios/default.json 读取 session 配置块。"""
+    data = _load_scenarios_file()
+    return data.get("session", {})

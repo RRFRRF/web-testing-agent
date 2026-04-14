@@ -17,6 +17,9 @@ SCENARIOS_DIR = PROJECT_ROOT / "scenarios"
 SCENARIOS_FILE = SCENARIOS_DIR / "default.json"
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 
+# ── 登录态存储 ──────────────────────────────────────────────
+COOKIES_DIR = PROJECT_ROOT / "cookies"
+
 
 def init_env() -> None:
     """加载 .env 文件。"""
@@ -29,3 +32,10 @@ def require_env(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
+
+
+def parse_bool(value: str | None, default: bool = False) -> bool:
+    """解析布尔值字符串（环境变量等）。"""
+    if not value:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")

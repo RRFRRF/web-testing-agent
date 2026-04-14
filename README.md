@@ -2,7 +2,7 @@
 
 [中文](README.cn.md) | English
 
-A minimal web testing MVP built on Deep Agents. The agent can execute real end-to-end browser tests from either fuzzy scenarios or structured steps, save large artifacts such as snapshots and screenshots to disk, and provide both a CLI workflow and a lightweight local web console.
+A minimal web testing MVP built on Deep Agents. The agent can execute real end-to-end browser tests from either fuzzy scenarios or structured steps, save large artifacts such as snapshots and screenshots to disk, reuse browser login state across runs via Playwright storage state, and provide both a CLI workflow and a lightweight local web console.
 
 ## Highlights
 
@@ -14,6 +14,8 @@ A minimal web testing MVP built on Deep Agents. The agent can execute real end-t
   - saves a companion screenshot
   - returns JSON containing both snapshot and screenshot paths
 - Other browser interactions intentionally stay on raw `playwright-cli` commands to keep the agent flexible
+- Supports **session persistence** via `playwright-cli state-load` / `state-save`
+- Reused browser state is stored under `cookies/{site_id}/{account_id}/state.json` and is intentionally kept out of `outputs/`
 - All run artifacts are persisted under `outputs/{run_id}/...`
 - Includes a local web console for:
   - current scenario
@@ -28,11 +30,12 @@ A minimal web testing MVP built on Deep Agents. The agent can execute real end-t
 │  ├─ config/                 # Env loading, paths, scenario/steps loading
 │  │  ├─ settings.py
 │  │  └─ scenarios.py
-│  ├─ core/                   # Agent builder, run pipeline, artifacts, run context
+│  ├─ core/                   # Agent builder, run pipeline, artifacts, run context, session persistence
 │  │  ├─ agent_builder.py
 │  │  ├─ runner.py
 │  │  ├─ run_context.py
-│  │  └─ artifacts.py
+│  │  ├─ artifacts.py
+│  │  └─ session.py
 │  ├─ tools/                  # Browser tool wrappers
 │  │  └─ browser_tools.py
 │  ├─ prompts/                # System and user prompt definitions
@@ -52,6 +55,7 @@ A minimal web testing MVP built on Deep Agents. The agent can execute real end-t
 ├─ scenarios/                 # Scenario config files
 │  └─ default.json
 ├─ tests/                     # Test suite (in progress)
+├─ cookies/                   # Reusable Playwright storage state (ignored by git)
 └─ outputs/                   # Run artifacts (ignored by git)
 ```
 
@@ -164,11 +168,42 @@ uv run webtestagent --scenario '[
 ]'
 ```
 
-### Show full stream events
+### Session persistence
 
 ```bash
-uv run webtestagent --show-full-events
+# Save browser state after the run
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-save-session
 ```
+
+```bash
+# Load a previously saved browser state before the run
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session
+```
+
+```bash
+# Load and save in the same run
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session --auto-save-session
+```
+
+```bash
+# Specify account id for multi-account sites
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session --session-account-id alice
+```
+
+The session state is stored outside `outputs/` under:
+
+```text
+cookies/{site_id}/{account_id}/state.json
+cookies/{site_id}/{account_id}/meta.json
+```
+
+Resolution priority for session settings:
+
+1. CLI flags such as `--auto-load-session`
+2. Environment variables such as `AUTO_LOAD_SESSION`
+3. `session` block in `scenarios/default.json`
+4. Built-in defaults
+
 
 ## Web Console
 
@@ -272,6 +307,96 @@ Why:
 - keeps browser interactions flexible
 - avoids unnecessary abstractions
 - customizes only the artifact-heavy steps that would otherwise bloat context
+
+## Session Persistence (Login State Reuse)
+
+The project supports **run-level login state persistence** via Playwright CLI's `state-load` / `state-save`. This lets you log in once and reuse the session across multiple runs, without relying on the agent to manually save cookies.
+
+### How It Works
+
+- **Before run**: if `--auto-load-session` is set and a saved state exists, `playwright-cli state-load` is called automatically
+- **After run**: if `--auto-save-session` is set, `playwright-cli state-save` is called automatically (even if the run fails)
+- The agent is informed via prompt context, but does **not** control the load/save logic itself
+
+### Cookies Directory
+
+Login states are stored under `cookies/` (ignored by git):
+
+```text
+cookies/
+├── <site_id>/
+│   ├── _default/
+│   │   ├── state.json       # Playwright storage state
+│   │   └── meta.json        # Desensitized metadata
+│   └── <account_id>/
+│       ├── state.json
+│       └── meta.json
+```
+
+`site_id` is derived from the URL automatically (e.g. `https://www.12306.cn/` → `12306-cn`), or overridden with `--session-site-id`.
+
+`meta.json` contains: `storage_mode`, `site_id`, `account_id`, `created_at`, `updated_at`, `last_loaded_at`, `last_run_id`.
+
+### CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `--auto-load-session` | Auto-load saved login state before run |
+| `--auto-save-session` | Auto-save login state after run |
+| `--session-site-id` | Override site ID (default: derived from URL) |
+| `--session-account-id` | Account identifier for multi-account sites |
+| `--session-dir` | Override cookies directory |
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `AUTO_LOAD_SESSION` | `true`/`false` |
+| `AUTO_SAVE_SESSION` | `true`/`false` |
+| `SESSION_SITE_ID` | Override site ID |
+| `SESSION_ACCOUNT_ID` | Account identifier |
+| `SESSION_DIR` | Override cookies directory |
+
+Priority: CLI flags > env vars > `scenarios/default.json` session block > defaults.
+
+### Example Commands
+
+```bash
+# First run: log in and auto-save the session
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-save-session
+
+# Later runs: auto-load the saved session (skip login)
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session
+
+# Both: load if available, save after run
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session --auto-save-session
+
+# Multi-account: specify which account to use
+uv run webtestagent --url "https://www.12306.cn/index/" --auto-load-session --session-account-id alice
+```
+
+### Account Auto-Discovery
+
+When `--session-account-id` is not specified:
+
+- **0 accounts** found → skip load, save to `_default`
+- **1 account** found → auto-use that account
+- **Multiple accounts** found → skip load (ambiguous), log warning, save to `_default`
+
+### Web Console
+
+The web console includes a collapsible "Session Persistence" section with:
+
+- Auto-load / auto-save checkboxes
+- Account ID input
+
+The `/api/defaults` endpoint returns session defaults from `scenarios/default.json`.
+
+### Security
+
+- `cookies/` is in `.gitignore` and never served via the web console
+- Manifest records only desensitized session metadata (site, account, load/save status)
+- Raw cookie content is never exposed through API or static routes
 
 ## Special Handling for 12306
 

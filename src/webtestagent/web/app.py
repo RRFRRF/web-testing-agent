@@ -17,9 +17,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from webtestagent.config.settings import OUTPUTS_DIR, PROJECT_ROOT, init_env
-from webtestagent.config.scenarios import get_default_url, load_scenario
+from webtestagent.config.settings import OUTPUTS_DIR, PROJECT_ROOT, init_env, parse_bool
+from webtestagent.config.scenarios import get_default_url, load_scenario, load_session_defaults
 from webtestagent.core.runner import PreparedRun, prepare_run, execute_prepared_run
+from webtestagent.core.session import SessionPersistenceConfig
 
 WEB_STATIC_DIR = Path(__file__).resolve().parent / "static"
 DEFAULT_HOST = "127.0.0.1"
@@ -194,9 +195,22 @@ def _run_worker(session: RunSession, prepared: PreparedRun) -> None:
             session.condition.notify_all()
 
 
-def start_run(url: str, scenario_text: str | None) -> RunSession:
+def _build_session_config(payload: dict) -> SessionPersistenceConfig:
+    """从 POST /api/run payload 构建 session 配置，合并 scenarios 默认值。"""
+    defaults = load_session_defaults()
+    sess = payload.get("session") or {}
+    return SessionPersistenceConfig(
+        auto_load=bool(sess.get("auto_load", defaults.get("auto_load", False))),
+        auto_save=bool(sess.get("auto_save", defaults.get("auto_save", False))),
+        site_id=sess.get("site_id") or defaults.get("site_id") or None,
+        account_id=sess.get("account_id") or defaults.get("account_id") or None,
+        storage_dir=Path(sess["storage_dir"]) if sess.get("storage_dir") else None,
+    )
+
+
+def start_run(url: str, scenario_text: str | None, session_config: SessionPersistenceConfig | None = None) -> RunSession:
     scenario_value = load_scenario((scenario_text or "").strip() or None)
-    prepared = prepare_run(url, scenario_value)
+    prepared = prepare_run(url, scenario_value, session_config=session_config)
     session = RunSession(
         run_id=prepared.run_context.run_id,
         url=prepared.url,
@@ -337,10 +351,17 @@ class AppHandler(BaseHTTPRequestHandler):
 
         if path == "/api/defaults":
             scenario = load_scenario(None)
+            session_defaults = load_session_defaults()
             self._send_json(
                 {
                     "default_url": get_default_url(),
                     "scenario": scenario if isinstance(scenario, str) else json.dumps(scenario, ensure_ascii=False, indent=2),
+                    "session": {
+                        "auto_load": bool(session_defaults.get("auto_load", False)),
+                        "auto_save": bool(session_defaults.get("auto_save", False)),
+                        "site_id": session_defaults.get("site_id") or "",
+                        "account_id": session_defaults.get("account_id") or "",
+                    },
                 }
             )
             return
@@ -404,7 +425,8 @@ class AppHandler(BaseHTTPRequestHandler):
             url = str(payload.get("url") or "").strip() or get_default_url()
             scenario = payload.get("scenario")
             scenario_text = str(scenario).strip() if scenario is not None else None
-            session = start_run(url, scenario_text)
+            session_config = _build_session_config(payload)
+            session = start_run(url, scenario_text, session_config)
             self._send_json({"run": _session_snapshot(session)}, status=201)
             return
 

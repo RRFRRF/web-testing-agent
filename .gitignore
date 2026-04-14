@@ -1,5 +1,6 @@
 .env
 .venv/
+cookies/
 outputs/
 .claude/
 __pycache__/
