@@ -1,14 +1,14 @@
 """artifact 落盘、预览生成与 manifest 维护。"""
+
 from __future__ import annotations
 
 import json
 import threading
 from dataclasses import asdict, dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from webtestagent.config.settings import PROJECT_ROOT
+from webtestagent.config.settings import PROJECT_ROOT, now_iso
 
 
 PREVIEW_MAX_LINES = 10
@@ -28,10 +28,6 @@ class ArtifactRecord:
     preview: str
 
 
-def _now_iso() -> str:
-    return datetime.now().isoformat(timespec="seconds")
-
-
 def _get_manifest_lock(manifest_path: Path) -> threading.RLock:
     key = str(manifest_path.resolve())
     with _LOCKS_GUARD:
@@ -45,7 +41,7 @@ def _get_manifest_lock(manifest_path: Path) -> threading.RLock:
 def _default_manifest(*, run_id: str, target_url: str | None = None) -> dict[str, Any]:
     return {
         "run_id": run_id,
-        "created_at": _now_iso(),
+        "created_at": now_iso(),
         "target_url": target_url or "",
         "session": {
             "site_id": "",
@@ -72,16 +68,22 @@ def _default_manifest(*, run_id: str, target_url: str | None = None) -> dict[str
 def _write_manifest(manifest_path: Path, data: dict[str, Any]) -> None:
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = manifest_path.with_suffix(f"{manifest_path.suffix}.tmp")
-    temp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     temp_path.replace(manifest_path)
 
 
-def _read_manifest(manifest_path: Path, *, run_id: str, target_url: str | None = None) -> dict[str, Any]:
+def _read_manifest(
+    manifest_path: Path, *, run_id: str, target_url: str | None = None
+) -> dict[str, Any]:
     if manifest_path.exists():
         try:
             return json.loads(manifest_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Manifest is corrupted: {manifest_path.as_posix()}") from exc
+            raise RuntimeError(
+                f"Manifest is corrupted: {manifest_path.as_posix()}"
+            ) from exc
 
     data = _default_manifest(run_id=run_id, target_url=target_url)
     _write_manifest(manifest_path, data)
@@ -103,7 +105,9 @@ def slugify_label(label: str) -> str:
     return cleaned or "artifact"
 
 
-def build_preview(text: str, *, max_lines: int = PREVIEW_MAX_LINES, max_chars: int = PREVIEW_MAX_CHARS) -> str:
+def build_preview(
+    text: str, *, max_lines: int = PREVIEW_MAX_LINES, max_chars: int = PREVIEW_MAX_CHARS
+) -> str:
     """构建轻量文本预览。"""
     stripped = text.strip()
     if not stripped:
@@ -117,14 +121,18 @@ def build_preview(text: str, *, max_lines: int = PREVIEW_MAX_LINES, max_chars: i
     return preview
 
 
-def ensure_manifest(manifest_path: Path, *, run_id: str, target_url: str | None = None) -> dict[str, Any]:
+def ensure_manifest(
+    manifest_path: Path, *, run_id: str, target_url: str | None = None
+) -> dict[str, Any]:
     """初始化或读取 manifest.json。"""
     lock = _get_manifest_lock(manifest_path)
     with lock:
         return _read_manifest(manifest_path, run_id=run_id, target_url=target_url)
 
 
-def update_manifest_target_url(manifest_path: Path, *, run_id: str, target_url: str) -> None:
+def update_manifest_target_url(
+    manifest_path: Path, *, run_id: str, target_url: str
+) -> None:
     """更新 manifest 中的目标 URL。"""
     lock = _get_manifest_lock(manifest_path)
     with lock:
@@ -152,7 +160,7 @@ def add_artifact_record(
             type=artifact_type,
             label=label,
             path=_to_virtual_path(file_path),
-            created_at=_now_iso(),
+            created_at=now_iso(),
             size_bytes=file_path.stat().st_size if file_path.exists() else 0,
             preview=preview,
         )
@@ -185,7 +193,7 @@ def save_text_artifact(
             type=artifact_type,
             label=label,
             path=_to_virtual_path(file_path),
-            created_at=_now_iso(),
+            created_at=now_iso(),
             size_bytes=file_path.stat().st_size if file_path.exists() else 0,
             preview=build_preview(content),
         )

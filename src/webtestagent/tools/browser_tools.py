@@ -1,4 +1,5 @@
 """封装 playwright-cli 的轻量 browser tools。"""
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,12 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from webtestagent.core.artifacts import format_artifact_response, register_file_artifact, save_text_artifact
+from webtestagent.core.artifacts import (
+    format_artifact_response,
+    register_file_artifact,
+    save_text_artifact,
+    slugify_label,
+)
 from webtestagent.config.settings import OUTPUTS_DIR
 
 
@@ -21,11 +27,15 @@ class OpenPageInput(BaseModel):
 
 
 class ArtifactCaptureInput(BaseModel):
-    label: str = Field(description="本次采集的简短标签，例如 home、after-search、error-state")
+    label: str = Field(
+        description="本次采集的简短标签，例如 home、after-search、error-state"
+    )
 
 
 class BrowserActionInput(BaseModel):
-    command: str = Field(description="要执行的 playwright-cli 子命令，不含 playwright-cli 前缀")
+    command: str = Field(
+        description="要执行的 playwright-cli 子命令，不含 playwright-cli 前缀"
+    )
     label: str = Field(description="本次动作的标签")
 
 
@@ -41,7 +51,11 @@ def _runtime_context(config: RunnableConfig | None) -> dict[str, Any]:
 def _get_run_values(config: RunnableConfig | None) -> tuple[str, Path]:
     context = _runtime_context(config)
     run_id = str(context.get("run_id") or os.getenv("RUN_ID") or "adhoc-run")
-    outputs_dir_raw = context.get("outputs_dir") or os.getenv("OUTPUTS_DIR") or str(OUTPUTS_DIR / run_id)
+    outputs_dir_raw = (
+        context.get("outputs_dir")
+        or os.getenv("OUTPUTS_DIR")
+        or str(OUTPUTS_DIR / run_id)
+    )
     return run_id, Path(outputs_dir_raw)
 
 
@@ -130,6 +144,8 @@ def _register_existing_file(
 
 def open_page(url: str, config: RunnableConfig) -> str:
     """在有头模式下打开目标页面。"""
+    if not url.lower().startswith(("http://", "https://")):
+        raise ValueError(f"URL must start with http:// or https://: {url!r}")
     result = _run_playwright([*_playwright_prefix(), "open", url, "--headed"])
     output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
     if result.returncode != 0:
@@ -151,17 +167,23 @@ def _capture_screenshot_record(*, label: str, config: RunnableConfig) -> dict[st
     if screenshots_dir.exists():
         existing = sorted(screenshots_dir.glob("*.png"))
     next_index = len(existing) + 1
-    filename = f"{next_index:03d}-{label.strip().replace(' ', '-').lower() or 'screenshot'}.png"
+    filename = f"{next_index:03d}-{slugify_label(label) or 'screenshot'}.png"
     file_path = screenshots_dir / filename
 
-    result = _run_playwright([*_playwright_prefix(), "screenshot", f"--filename={file_path.as_posix()}"])
+    result = _run_playwright(
+        [*_playwright_prefix(), "screenshot", f"--filename={file_path.as_posix()}"]
+    )
     output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
     if result.returncode != 0:
         raise RuntimeError(f"Failed to capture screenshot: {output.strip()}")
     if not file_path.exists():
-        raise RuntimeError(f"Screenshot command succeeded but file was not created: {file_path.as_posix()}")
+        raise RuntimeError(
+            f"Screenshot command succeeded but file was not created: {file_path.as_posix()}"
+        )
 
-    preview = f"Screenshot saved to {file_path.as_posix()}\nCommand output:\n{output.strip()}"
+    preview = (
+        f"Screenshot saved to {file_path.as_posix()}\nCommand output:\n{output.strip()}"
+    )
     record = register_file_artifact(
         manifest_path=_manifest_path(outputs_dir),
         run_id=run_id,
@@ -267,6 +289,11 @@ def run_browser_command(command: str, label: str, config: RunnableConfig) -> str
 
     适用于必要时执行轻量命令，但推荐优先使用专门工具。
     """
+    # 拒绝含 -- 的命令，防止注入 playwright-cli flag
+    if "--" in command:
+        raise ValueError(
+            f"Command must not contain '--' (potential flag injection): {command!r}"
+        )
     result = _run_playwright([*_playwright_prefix(), *command.split()])
     output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
     content = json.dumps(

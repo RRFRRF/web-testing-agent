@@ -11,3 +11,4 @@ large_tool_results/
 *.egg-info/
 dist/
 build/
+.coverage

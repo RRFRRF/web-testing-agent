@@ -1,7 +1,12 @@
 """项目路径、环境变量加载、基础配置。"""
+
 from __future__ import annotations
 
+import locale
 import os
+import subprocess
+import sys
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -39,3 +44,27 @@ def parse_bool(value: str | None, default: bool = False) -> bool:
     if not value:
         return default
     return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def configure_utf8_runtime() -> None:
+    """配置运行时 UTF-8 编码，确保 subprocess / stdout / locale 一致。"""
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    os.environ["PYTHONUTF8"] = "1"
+
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8", errors="replace")
+
+    if hasattr(locale, "getpreferredencoding"):
+        locale.getpreferredencoding = lambda do_setlocale=True: "utf-8"  # type: ignore[assignment]
+    if hasattr(locale, "getencoding"):
+        locale.getencoding = lambda: "utf-8"  # type: ignore[assignment]
+    if hasattr(subprocess, "_text_encoding"):
+        subprocess._text_encoding = lambda: "utf-8"  # type: ignore[attr-defined]
+
+
+def now_iso() -> str:
+    """返回当前时间的 ISO 格式字符串。"""
+    return datetime.now().isoformat(timespec="seconds")

@@ -1,15 +1,22 @@
 """共享测试运行核心：供 CLI 与 Web 控制台复用。"""
+
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from webtestagent.core.agent_builder import build_agent, resolve_playwright_cli
-from webtestagent.core.artifacts import build_preview, ensure_manifest, register_file_artifact, update_manifest_target_url
-from webtestagent.config.settings import init_env
+from webtestagent.core.artifacts import (
+    build_preview,
+    ensure_manifest,
+    register_file_artifact,
+    update_manifest_target_url,
+    _get_manifest_lock,
+)
+from webtestagent.config.settings import init_env, now_iso
 from webtestagent.output.stream import events_from_stream_chunk, final_result_from_state
 from webtestagent.output.formatters import extract_text
 from webtestagent.prompts.user import build_prompt
@@ -87,8 +94,12 @@ def prepare_run(
 
     run_context = create_run_context()
     inject_run_environment(run_context)
-    ensure_manifest(run_context.manifest_path, run_id=run_context.run_id, target_url=url)
-    update_manifest_target_url(run_context.manifest_path, run_id=run_context.run_id, target_url=url)
+    ensure_manifest(
+        run_context.manifest_path, run_id=run_context.run_id, target_url=url
+    )
+    update_manifest_target_url(
+        run_context.manifest_path, run_id=run_context.run_id, target_url=url
+    )
 
     # ── session 解析与前置导入 ─────────────────────────────
     session_state: ResolvedSessionState | None = None
@@ -114,7 +125,8 @@ def prepare_run(
             )
 
     prompt = build_prompt(
-        url, scenario,
+        url,
+        scenario,
         outputs_dir=run_context.run_dir.as_posix(),
         session_state=session_state,
     )
@@ -133,13 +145,15 @@ def prepare_run(
 
     # 注入 session 上下文
     if session_state:
-        config["context"].update({
-            "session_auto_load": session_state.enabled_load,
-            "session_auto_save": session_state.enabled_save,
-            "session_site_id": session_state.site_id,
-            "session_account_id": session_state.account_id,
-            "session_load_applied": session_state.load_applied,
-        })
+        config["context"].update(
+            {
+                "session_auto_load": session_state.enabled_load,
+                "session_auto_save": session_state.enabled_save,
+                "session_site_id": session_state.site_id,
+                "session_account_id": session_state.account_id,
+                "session_load_applied": session_state.load_applied,
+            }
+        )
 
     return PreparedRun(
         url=url,
@@ -156,7 +170,7 @@ def prepare_run(
 
 
 def _timestamp() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    return now_iso()
 
 
 def emit_event(callback: EventCallback | None, event: dict[str, Any]) -> None:
@@ -214,13 +228,14 @@ def execute_prepared_run(
             config=prepared.config,
             stream_mode=["updates"],
         ):
-            if not isinstance(chunk, tuple):
-                final_result = chunk
-            for event in events_from_stream_chunk(chunk, show_full_events=show_full_events):
-                emit_event(on_event, event)
+            if isinstance(chunk, tuple):
+                for event in events_from_stream_chunk(
+                    chunk, show_full_events=show_full_events
+                ):
+                    emit_event(on_event, event)
 
-        if final_result is None:
-            final_result = final_result_from_state(prepared.agent, prepared.config)
+        # 循环结束后从 agent state 取最终结果，避免中间非元组 chunk 误判
+        final_result = final_result_from_state(prepared.agent, prepared.config)
 
         final_report = extract_text(final_result)
         report_path = save_final_report(prepared, final_report)
@@ -301,53 +316,74 @@ def run_test(
     session_config: SessionPersistenceConfig | None = None,
 ) -> RunResult:
     """准备并执行一次完整测试运行。"""
-    prepared = prepare_run(url, scenario, thread_id=thread_id, session_config=session_config)
-    return execute_prepared_run(prepared, on_event=on_event, show_full_events=show_full_events)
+    prepared = prepare_run(
+        url, scenario, thread_id=thread_id, session_config=session_config
+    )
+    return execute_prepared_run(
+        prepared, on_event=on_event, show_full_events=show_full_events
+    )
 
 
 # ── manifest session 辅助 ──────────────────────────────────
-
-import json as _json
 
 
 def _read_manifest_raw(manifest_path: Path, *, run_id: str) -> dict[str, Any]:
     """读取 manifest 原始数据。"""
     if manifest_path.exists():
-        return _json.loads(manifest_path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"Manifest is corrupted: {manifest_path.as_posix()}"
+            ) from exc
     return {"run_id": run_id}
 
 
 def _write_manifest_raw(manifest_path: Path, data: dict[str, Any]) -> None:
-    """写入 manifest。"""
+    """写入 manifest（原子写：先写 .tmp 再 rename）。"""
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     temp = manifest_path.with_suffix(f"{manifest_path.suffix}.tmp")
-    temp.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(manifest_path)
 
 
 def _update_manifest_session_block(
     manifest_path: Path, *, run_id: str, session_data: dict[str, Any]
 ) -> None:
-    data = _read_manifest_raw(manifest_path, run_id=run_id)
-    data["session"] = session_data
-    _write_manifest_raw(manifest_path, data)
+    lock = _get_manifest_lock(manifest_path)
+    with lock:
+        data = _read_manifest_raw(manifest_path, run_id=run_id)
+        data["session"] = session_data
+        _write_manifest_raw(manifest_path, data)
 
 
 def _update_manifest_session_load(
     manifest_path: Path, *, run_id: str, attempted: bool, applied: bool, message: str
 ) -> None:
-    data = _read_manifest_raw(manifest_path, run_id=run_id)
-    session = data.get("session", {})
-    session["load"] = {"attempted": attempted, "applied": applied, "message": message}
-    data["session"] = session
-    _write_manifest_raw(manifest_path, data)
+    lock = _get_manifest_lock(manifest_path)
+    with lock:
+        data = _read_manifest_raw(manifest_path, run_id=run_id)
+        session = data.get("session", {})
+        session["load"] = {
+            "attempted": attempted,
+            "applied": applied,
+            "message": message,
+        }
+        data["session"] = session
+        _write_manifest_raw(manifest_path, data)
 
 
 def _update_manifest_session_save(
     manifest_path: Path, *, run_id: str, attempted: bool, succeeded: bool, message: str
 ) -> None:
-    data = _read_manifest_raw(manifest_path, run_id=run_id)
-    session = data.get("session", {})
-    session["save"] = {"attempted": attempted, "succeeded": succeeded, "message": message}
-    data["session"] = session
-    _write_manifest_raw(manifest_path, data)
+    lock = _get_manifest_lock(manifest_path)
+    with lock:
+        data = _read_manifest_raw(manifest_path, run_id=run_id)
+        session = data.get("session", {})
+        session["save"] = {
+            "attempted": attempted,
+            "succeeded": succeeded,
+            "message": message,
+        }
+        data["session"] = session
+        _write_manifest_raw(manifest_path, data)

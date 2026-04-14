@@ -1,9 +1,9 @@
 """场景/步骤加载逻辑。"""
+
 from __future__ import annotations
 
 import json
 from datetime import date
-from pathlib import Path
 from typing import Any
 
 from webtestagent.config.settings import SCENARIOS_FILE
@@ -36,7 +36,10 @@ def build_default_steps() -> list[dict[str, str]]:
             {"type": "Action", "text": "将目的地选择为上海"},
             {"type": "Action", "text": f"将出发日期设置为今天（{today}）"},
             {"type": "Action", "text": "点击查询或搜索按钮"},
-            {"type": "Outcome", "text": "页面应出现车次搜索结果、余票列表，或进入包含查询结果的页面"},
+            {
+                "type": "Outcome",
+                "text": "页面应出现车次搜索结果、余票列表，或进入包含查询结果的页面",
+            },
         ]
 
     return [

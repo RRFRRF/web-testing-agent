@@ -3,12 +3,19 @@
 将所有消息的 content 扁平化为纯文本字符串，
 以兼容不支持多模态 content 结构的模型端点（如 GLM-5）。
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 from langchain.agents.middleware.types import wrap_model_call
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
 
 def flatten_content(content: Any) -> str:
@@ -45,13 +52,17 @@ def clone_message_with_text_content(message: BaseMessage) -> BaseMessage:
 
     if isinstance(message, HumanMessage):
         return HumanMessage(
-            content=text_content, name=message.name, id=message.id,
+            content=text_content,
+            name=message.name,
+            id=message.id,
             additional_kwargs=message.additional_kwargs,
         )
 
     if isinstance(message, SystemMessage):
         return SystemMessage(
-            content=text_content, name=message.name, id=message.id,
+            content=text_content,
+            name=message.name,
+            id=message.id,
             additional_kwargs=message.additional_kwargs,
         )
 
@@ -82,5 +93,7 @@ def clone_message_with_text_content(message: BaseMessage) -> BaseMessage:
 @wrap_model_call
 def normalize_messages_for_compatible_endpoint(request, handler):
     """中间件：将所有消息 content 转换为纯文本后再发给模型。"""
-    normalized_messages = [clone_message_with_text_content(msg) for msg in request.messages]
+    normalized_messages = [
+        clone_message_with_text_content(msg) for msg in request.messages
+    ]
     return handler(request.override(messages=normalized_messages))

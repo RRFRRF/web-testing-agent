@@ -1,4 +1,5 @@
 """流式输出处理与最终结果提取。"""
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,10 @@ from webtestagent.output.formatters import (
 
 # ── 流式事件转换 ───────────────────────────────────────────
 
-def events_from_stream_chunk(chunk: Any, *, show_full_events: bool = False) -> list[dict[str, Any]]:
+
+def events_from_stream_chunk(
+    chunk: Any, *, show_full_events: bool = False
+) -> list[dict[str, Any]]:
     """将 agent.stream() 的 chunk 转成结构化事件列表。"""
     events: list[dict[str, Any]] = []
 
@@ -23,7 +27,11 @@ def events_from_stream_chunk(chunk: Any, *, show_full_events: bool = False) -> l
         safe_payload = make_json_safe(payload)
 
         if mode == "messages":
-            target = payload[0] if isinstance(payload, (list, tuple)) and payload else payload
+            target = (
+                payload[0]
+                if isinstance(payload, (list, tuple)) and payload
+                else payload
+            )
             summary = summarize_message(target)
             if summary:
                 events.append(
@@ -42,15 +50,21 @@ def events_from_stream_chunk(chunk: Any, *, show_full_events: bool = False) -> l
                     continue
                 safe_node_payload = make_json_safe(node_payload)
                 if show_full_events:
-                    summary = json.dumps(safe_node_payload, ensure_ascii=False, indent=2)
+                    summary = json.dumps(
+                        safe_node_payload, ensure_ascii=False, indent=2
+                    )
                 elif isinstance(node_payload, dict):
                     messages = node_payload.get("messages")
                     if isinstance(messages, list) and messages:
                         summary = summarize_message(messages[-1])
                     else:
-                        summary = format_inline_text(json.dumps(safe_node_payload, ensure_ascii=False))
+                        summary = format_inline_text(
+                            json.dumps(safe_node_payload, ensure_ascii=False)
+                        )
                 else:
-                    summary = format_inline_text(json.dumps(safe_node_payload, ensure_ascii=False))
+                    summary = format_inline_text(
+                        json.dumps(safe_node_payload, ensure_ascii=False)
+                    )
                 events.append(
                     {
                         "channel": "node",
@@ -94,6 +108,7 @@ def events_from_stream_chunk(chunk: Any, *, show_full_events: bool = False) -> l
 
 # ── 流式打印 ──────────────────────────────────────────────
 
+
 def print_stream_event(chunk: Any, *, show_full_events: bool = False) -> None:
     """将 agent.stream() 的 chunk 格式化输出到控制台。"""
     for event in events_from_stream_chunk(chunk, show_full_events=show_full_events):
@@ -101,6 +116,7 @@ def print_stream_event(chunk: Any, *, show_full_events: bool = False) -> None:
 
 
 # ── 最终结果 ──────────────────────────────────────────────
+
 
 def final_result_from_state(agent: Any, config: dict[str, Any]) -> Any:
     """从 agent state 快照中提取最终结果。"""

@@ -772,6 +772,39 @@
         }
       })();
 
+      // ── WebSocket 连接（可选，比 SSE 更强大） ──────
+      function connectWS(runId) {
+        if (state.ws) { state.ws.close(); state.ws = null; }
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${location.host}/api/ws/run/${runId}`);
+        state.ws = ws;
+        ws.onmessage = (e) => {
+          try {
+            const event = JSON.parse(e.data);
+            if (event.event === 'keepalive' || event.event === 'pong') return;
+            if (event.event === 'cancelled') {
+              setStatus('failed', '运行已取消');
+              return;
+            }
+            appendEvent(event);
+            if (event.channel === 'system') {
+              if (event.mode === 'start') setStatus('running', '正在执行测试');
+              if (event.mode === 'error') setStatus('failed', event.summary || '运行失败');
+              if (event.mode === 'complete' || event.mode === 'status') setStatus('completed', '测试完成');
+            }
+          } catch {}
+        };
+        ws.onclose = () => { state.ws = null; };
+        ws.onerror = () => { ws.close(); state.ws = null; };
+      }
+
+      // ── 取消运行（通过 WebSocket） ──────────────
+      window.cancelRun = function() {
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+          state.ws.send(JSON.stringify({ action: 'cancel' }));
+        }
+      };
+
     </script>
   </body>
 </html>

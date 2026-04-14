@@ -1,4 +1,5 @@
 """Deep Agent 构建：模型、后端、技能组装。"""
+
 from __future__ import annotations
 
 import shutil
@@ -11,7 +12,9 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from webtestagent.tools.browser_tools import build_browser_tools
 from webtestagent.config.settings import PROJECT_ROOT, SKILLS_DIR, require_env
-from webtestagent.middleware.message_normalizer import normalize_messages_for_compatible_endpoint
+from webtestagent.middleware.message_normalizer import (
+    normalize_messages_for_compatible_endpoint,
+)
 from webtestagent.prompts.system import SYSTEM_PROMPT
 
 

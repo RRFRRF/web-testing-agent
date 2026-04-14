@@ -1,4 +1,5 @@
 """每次运行的上下文与输出目录管理。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -37,7 +38,14 @@ def create_run_context() -> RunContext:
     network_dir = run_dir / "network"
     manifest_path = run_dir / "manifest.json"
 
-    for path in [OUTPUTS_DIR, run_dir, snapshots_dir, screenshots_dir, console_dir, network_dir]:
+    for path in [
+        OUTPUTS_DIR,
+        run_dir,
+        snapshots_dir,
+        screenshots_dir,
+        console_dir,
+        network_dir,
+    ]:
         path.mkdir(parents=True, exist_ok=True)
 
     return RunContext(

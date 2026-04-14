@@ -1,4 +1,5 @@
 """格式化工具与文本提取。"""
+
 from __future__ import annotations
 
 import json
@@ -8,6 +9,7 @@ from webtestagent.middleware.message_normalizer import flatten_content, message_
 
 
 # ── 格式化工具 ──────────────────────────────────────────────
+
 
 def format_inline_text(value: str, *, limit: int = 120) -> str:
     """将多行文本压缩为一行，超长截断。"""
@@ -34,6 +36,7 @@ def make_json_safe(value: Any) -> Any:
 
 
 # ── 文本提取 ──────────────────────────────────────────────
+
 
 def extract_text(result: Any) -> str:
     """从 agent 最终结果中提取可读文本。"""
@@ -80,6 +83,7 @@ def summarize_message(message: Any) -> str:
 
 
 # ── CLI 事件格式化 ────────────────────────────────────────
+
 
 def format_event_for_cli(event: dict[str, Any]) -> str:
     """将结构化事件转成 CLI 可读文本。"""
