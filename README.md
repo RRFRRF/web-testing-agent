@@ -1,68 +1,83 @@
 # web-testing-agent
 
-中文 | [English](README.en.md)
+[中文](README.cn.md) | English
 
-一个基于 Deep Agents 的最小化 Web 自动测试 MVP：Agent 能根据模糊场景或结构化步骤，在真实浏览器中执行 E2E 测试，自动把快照/截图等大体量证据落盘，并同时提供 CLI 与本地 Web 控制台两种使用方式。
+A minimal web testing MVP built on Deep Agents. The agent can execute real end-to-end browser tests from either fuzzy scenarios or structured steps, save large artifacts such as snapshots and screenshots to disk, and provide both a CLI workflow and a lightweight local web console.
 
-## 功能特性
+## Highlights
 
-- 支持**模糊 scenario 描述**，由 agent 自主拆解测试步骤
-- 支持**结构化 steps** 输入，适合稳定回归场景
-- 使用真实浏览器执行测试，而不是只做静态分析
-- `capture_snapshot` 会自动：
-  - 保存 snapshot artifact
-  - 额外保存一张配套 screenshot
-  - 返回包含 snapshot/screenshot 路径的 JSON
-- 其余页面交互默认优先走 `playwright-cli` 原生命令，避免过度封装让 agent 变笨
-- 运行产物统一落盘到 `outputs/{run_id}/...`
-- 内置本地 Web 控制台，可实时查看：
-  - 当前 scenario
-  - 最新截图
-  - 运行日志
+- Supports **fuzzy scenario descriptions** that the agent can decompose into executable test actions
+- Supports **structured test steps** for more deterministic regression-style runs
+- Uses a real browser instead of only static reasoning
+- `capture_snapshot` automatically:
+  - saves the snapshot artifact
+  - saves a companion screenshot
+  - returns JSON containing both snapshot and screenshot paths
+- Other browser interactions intentionally stay on raw `playwright-cli` commands to keep the agent flexible
+- All run artifacts are persisted under `outputs/{run_id}/...`
+- Includes a local web console for:
+  - current scenario
+  - live-updating screenshot preview
+  - readable execution logs
 
-## 项目结构
+## Project Layout
 
 ```text
 .
-├─ agent.py               # Deep Agent 构建：模型、backend、skills、browser tools
-├─ browser_tools.py       # 仅负责 snapshot / screenshot 落盘
-├─ config.py              # 环境变量、默认 URL、scenario/steps 加载
-├─ main.py                # CLI 入口
-├─ output.py              # 流式事件归一化与 CLI 输出格式化
-├─ prompts.py             # system prompt 与 user prompt 模板
-├─ runner.py              # CLI 与 Web 共用的运行核心
-├─ webapp.py              # 本地 Web 控制台后端（标准库 http.server）
-├─ web/
-│  └─ index.html          # 控制台前端
-├─ skills/
-│  └─ e2e-test/           # E2E 测试方法论 skill
-├─ scenarios.json         # 默认 URL 与默认 scenario/steps
-└─ outputs/               # 每次运行的 artifacts（已被 git 忽略）
+├─ src/webtestagent/          # Main Python package
+│  ├─ config/                 # Env loading, paths, scenario/steps loading
+│  │  ├─ settings.py
+│  │  └─ scenarios.py
+│  ├─ core/                   # Agent builder, run pipeline, artifacts, run context
+│  │  ├─ agent_builder.py
+│  │  ├─ runner.py
+│  │  ├─ run_context.py
+│  │  └─ artifacts.py
+│  ├─ tools/                  # Browser tool wrappers
+│  │  └─ browser_tools.py
+│  ├─ prompts/                # System and user prompt definitions
+│  │  ├─ system.py
+│  │  └─ user.py
+│  ├─ middleware/             # LangChain message normalization
+│  │  └─ message_normalizer.py
+│  ├─ output/                 # Stream event parsing and CLI formatting
+│  │  ├─ formatters.py
+│  │  └─ stream.py
+│  ├─ cli/                    # CLI entry point
+│  │  └─ main.py
+│  └─ web/                    # Local web console
+│     ├─ app.py
+│     └─ static/index.html
+├─ skills/                    # Agent skills (e2e-test, playwright-cli)
+├─ scenarios/                 # Scenario config files
+│  └─ default.json
+├─ tests/                     # Test suite (in progress)
+└─ outputs/                   # Run artifacts (ignored by git)
 ```
 
-## 运行要求
+## Requirements
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
-- Node.js（用于 `playwright-cli` / `npx playwright-cli`）
-- 可用的大模型兼容接口
+- Node.js (for `playwright-cli` / `npx playwright-cli`)
+- An OpenAI-compatible LLM endpoint
 
-### 必需环境变量
+### Required Environment Variables
 
-项目通过 `config.py` / `agent.py` 读取以下变量：
+The project reads these variables via `webtestagent.config.settings` and `webtestagent.core.agent_builder`:
 
 - `OPENAI_API_KEY`
 - `OPENAI_BASE_URL`
 - `OPENAI_MODEL`
 
-可选变量：
+Optional variables:
 
-- `TARGET_URL`：默认测试 URL
-- `SCENARIO`：默认模糊场景
-- `STEPS_JSON`：结构化步骤 JSON
-- `WEBAPP_PORT`：Web 控制台端口，默认 `8765`
+- `TARGET_URL`: default target URL
+- `SCENARIO`: default fuzzy scenario
+- `STEPS_JSON`: structured test steps in JSON
+- `WEBAPP_PORT`: local web console port, default `8765`
 
-建议在项目根目录创建 `.env`：
+Recommended `.env` file in the project root:
 
 ```bash
 OPENAI_API_KEY=your_key
@@ -72,101 +87,101 @@ OPENAI_MODEL=gpt-4.1
 
 ## Quickstart
 
-### 1. 安装依赖
+### 1. Install dependencies
 
 ```bash
 uv sync
 ```
 
-### 2. 确保 playwright-cli 可用
+### 2. Make sure `playwright-cli` is available
 
-项目会优先查找：
+The project will try:
 
-1. 全局 `playwright-cli`
-2. 或 `npx playwright-cli`
+1. global `playwright-cli`
+2. or `npx playwright-cli`
 
-如果未安装，可按你本地环境准备 Node 工具链后安装对应 CLI。
+If neither is available, install the Playwright CLI through your local Node.js toolchain.
 
-### 3. 运行一次默认测试（CLI）
-
-```bash
-uv run python main.py
-```
-
-这会：
-
-- 从 `scenarios.json` 读取默认 URL 和默认场景
-- 创建新的 `run_id`
-- 在 `outputs/{run_id}/` 下保存所有 artifacts
-- 最后输出结构化测试报告
-
-### 4. 启动本地 Web 控制台
+### 3. Run the default test from the CLI
 
 ```bash
-uv run python webapp.py
+uv run webtestagent
 ```
 
-然后打开：
+This will:
+
+- load the default URL and scenario from `scenarios/default.json`
+- create a new `run_id`
+- save artifacts under `outputs/{run_id}/`
+- print the final structured test report
+
+### 4. Start the local web console
+
+```bash
+uv run webtestagent-web
+```
+
+Then open:
 
 ```text
 http://127.0.0.1:8765
 ```
 
-控制台当前采用最小三栏布局：
+The console uses a minimal three-panel layout:
 
-- 左侧：scenario / URL / 运行状态
-- 中间：实时更新的最新 screenshot
-- 右侧：更适合人看的运行日志
+- left: scenario / URL / run status
+- center: latest screenshot preview
+- right: readable execution logs
 
-## CLI 用法
+## CLI Usage
 
-### 使用默认配置
+### Run with defaults
 
 ```bash
-uv run python main.py
+uv run webtestagent
 ```
 
-### 指定 URL
+### Pass a target URL
 
 ```bash
-uv run python main.py --url "https://www.12306.cn/index/"
+uv run webtestagent --url "https://www.12306.cn/index/"
 ```
 
-### 传入模糊场景
+### Pass a fuzzy scenario
 
 ```bash
-uv run python main.py --url "https://www.12306.cn/index/" --scenario "测试从天津到上海的购票查询流程，验证是否出现车次结果，并主动发现页面异常"
+uv run webtestagent --url "https://www.12306.cn/index/" --scenario "Test the train ticket search flow from Tianjin to Shanghai, verify that results appear, and proactively report visible issues"
 ```
 
-### 传入结构化步骤
+### Pass structured steps
 
 ```bash
-uv run python main.py --scenario '[
-  {"type":"Context","text":"我打开 12306 首页"},
-  {"type":"Action","text":"将出发地选择为天津"},
-  {"type":"Action","text":"将目的地选择为上海"},
-  {"type":"Outcome","text":"应出现车次搜索结果"}
+uv run webtestagent --scenario '[
+  {"type":"Context","text":"Open the 12306 homepage"},
+  {"type":"Action","text":"Set departure city to Tianjin"},
+  {"type":"Action","text":"Set destination city to Shanghai"},
+  {"type":"Outcome","text":"Train results should appear"}
 ]'
 ```
 
-### 查看完整流式事件
+### Show full stream events
 
 ```bash
-uv run python main.py --show-full-events
+uv run webtestagent --show-full-events
 ```
 
-## Web 控制台用法
+## Web Console
 
-启动后，前端会通过 HTTP API + SSE 与后端通信。
+The frontend talks to the backend through HTTP APIs and SSE.
 
-主要能力：
+Main capabilities:
 
-- 发起新的测试 run
-- 实时查看当前 run 的事件流
-- 自动刷新最新 screenshot
-- 读取 `outputs/{run_id}/manifest.json` 与 `report.md`
+- start a new test run
+- stream live run events
+- refresh the latest screenshot automatically
+- read `outputs/{run_id}/manifest.json` and `report.md`
 
-主要后端接口包括：
+Main endpoints:
 
 - `GET /api/defaults`
 - `POST /api/run`
@@ -176,50 +191,50 @@ uv run python main.py --show-full-events
 - `GET /api/run/{run_id}/stream`
 - `GET /outputs/...`
 
-## Scenario 配置
+## Scenario Configuration
 
-默认配置文件是 `scenarios.json`。
+The default config file is `scenarios/default.json`.
 
-当前支持两种输入模式：
+Two input styles are supported:
 
-### 1. 模糊场景描述
+### 1. Fuzzy scenario
 
 ```json
 {
   "default_url": "https://www.12306.cn/index/",
-  "scenario": "测试从天津到上海的购票查询流程：选择出发地天津、目的地上海、出发日期明天，点击查询，验证是否出现车次结果"
+  "scenario": "Test the ticket search flow from Tianjin to Shanghai: select Tianjin as departure, Shanghai as destination, choose tomorrow as the departure date, click search, and verify that train results appear"
 }
 ```
 
-### 2. 结构化步骤
+### 2. Structured steps
 
 ```json
 {
   "steps": [
-    {"type": "Context", "text": "我打开 12306 首页"},
-    {"type": "Action", "text": "将出发地选择为天津"},
-    {"type": "Action", "text": "将目的地选择为上海"},
-    {"type": "Outcome", "text": "页面应出现车次搜索结果"}
+    {"type": "Context", "text": "Open the 12306 homepage"},
+    {"type": "Action", "text": "Set departure city to Tianjin"},
+    {"type": "Action", "text": "Set destination city to Shanghai"},
+    {"type": "Outcome", "text": "Train results should appear"}
   ]
 }
 ```
 
-加载优先级如下：
+Loading priority:
 
 1. CLI `--scenario`
-2. 环境变量 `SCENARIO` / `STEPS_JSON`
-3. `scenarios.json` 中的 `scenario`
-4. `scenarios.json` 中的 `steps`
+2. `SCENARIO` / `STEPS_JSON` env vars
+3. `scenario` in `scenarios/default.json`
+4. `steps` in `scenarios/default.json`
 
-## Artifact 设计
+## Artifact Strategy
 
-所有运行产物会保存到：
+All run artifacts are saved under:
 
 ```text
 outputs/{run_id}/
 ```
 
-典型目录结构：
+Typical structure:
 
 ```text
 outputs/run-20260413-xxxx/
@@ -231,71 +246,71 @@ outputs/run-20260413-xxxx/
 └─ network/
 ```
 
-设计目标：
+Design goals:
 
-- 大结果优先落盘，不把超长 snapshot 直接塞进模型上下文
-- Agent 只保留轻量摘要与路径
-- 真正需要细节时，再通过文件系统工具读取 artifact
+- keep large outputs on disk instead of stuffing raw snapshots into model context
+- preserve only lightweight summaries and file paths in active context
+- let the agent read raw artifact files only when needed
 
-## Browser tools 约束
+## Browser Tool Scope
 
-本项目刻意将自定义 browser tools 收窄到最小范围。
+This project intentionally keeps custom browser tools minimal.
 
-当前只保留：
+Currently only:
 
 - `capture_snapshot`
 - `capture_screenshot`
 
-其中：
+Behavior:
 
-- `capture_snapshot`：采集页面结构快照，并自动再截一张图
-- `capture_screenshot`：只有 agent 判断需要额外截图时才调用
-- 打开页面、点击、输入、选择等行为，默认优先使用 `playwright-cli` 原生命令
+- `capture_snapshot`: captures a page snapshot and automatically saves an additional screenshot
+- `capture_screenshot`: used only when the agent decides an extra screenshot is helpful
+- page open / click / type / select actions should generally stay on native `playwright-cli` commands
 
-这样做的目的是：
+Why:
 
-- 保留交互灵活性
-- 减少不必要封装
-- 只在真正会撑爆上下文的证据采集环节做定制
+- keeps browser interactions flexible
+- avoids unnecessary abstractions
+- customizes only the artifact-heavy steps that would otherwise bloat context
 
-## 12306 特殊策略
+## Special Handling for 12306
 
-针对 12306 城市联想框，当前 prompt 与 skill 明确约束：
+For the 12306 city autocomplete flow, the prompt and skill explicitly enforce:
 
-- 默认优先鼠标点击候选项
-- 不默认使用 `Enter`
-- 不默认使用 `ArrowDown + Enter`
-- 对复杂联想框采用：聚焦 → 输入 → 立即抓取 → 点击候选 → 再验证 的节奏
+- prefer clicking candidate items with the mouse
+- do not use `Enter` by default
+- do not use `ArrowDown + Enter` by default
+- use a staged pattern for complex autocomplete widgets: focus → type → capture → click candidate → verify again
 
-这是为了避免出现“天津被误选成北京北”之类的问题。
+This helps avoid issues such as Tianjin being mistakenly rewritten as Beijing North.
 
-## 常见命令
+## Common Commands
 
 ```bash
-# CLI 默认运行
-uv run python main.py
+# Run default CLI flow
+uv run webtestagent
 
-# CLI 指定场景
-uv run python main.py --scenario "测试登录流程"
+# Run CLI with a scenario
+uv run webtestagent --scenario "Test the login flow"
 
-# 启动 Web 控制台
-uv run python webapp.py
+# Start the web console
+uv run webtestagent-web
 ```
 
-## 当前实现说明
+## Project Status
 
-这是一个偏 MVP 的实现，重点在于：
+This is still an MVP-oriented implementation. The focus is on validating:
 
-- 验证 Deep Agents + 本地技能 + Playwright CLI 的组合形态
-- 验证“文件系统优先”的 artifact 管理方式
-- 验证在 Web 控制台中实时观察 agent 执行过程的最小可行方案
+- the Deep Agents + local skills + Playwright CLI setup
+- an artifact-first filesystem workflow
+- a minimal local web console for observing agent execution in real time
 
-因此目前更偏向：
+So the project is currently optimized for:
 
-- 本地运行
-- 单机调试
-- 最小依赖
-- 易于继续迭代
+- local development
+- single-machine debugging
+- minimal dependencies
+- easy iteration
 
 ## License
 

@@ -7,3 +7,6 @@ __pycache__/
 *.pyc
 .claude/settings.local.json
 large_tool_results/
+*.egg-info/
+dist/
+build/

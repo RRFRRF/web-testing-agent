@@ -681,25 +681,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mvp-deepagents"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "deepagents" },
-    { name = "langchain-openai" },
-    { name = "langgraph" },
-    { name = "python-dotenv" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "deepagents", specifier = ">=0.5,<0.6" },
-    { name = "langchain-openai", specifier = ">=1.0,<2.0" },
-    { name = "langgraph", specifier = ">=1.0,<2.0" },
-    { name = "python-dotenv", specifier = ">=1.0,<2.0" },
-]
-
-[[package]]
 name = "openai"
 version = "2.31.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1333,6 +1314,25 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/79/3e/c0bdc27cf06f4e47680bd5803a07cb3dfd17de84cde92dd217dcb9e05253/wcmatch-10.1.tar.gz", hash = "sha256:f11f94208c8c8484a16f4f48638a85d771d9513f4ab3f37595978801cb9465af", size = 117421, upload-time = "2025-06-22T19:14:02.49Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/d8/0d1d2e9d3fabcf5d6840362adcf05f8cf3cd06a73358140c3a97189238ae/wcmatch-10.1-py3-none-any.whl", hash = "sha256:5848ace7dbb0476e5e55ab63c6bbd529745089343427caa5537f230cc01beb8a", size = 39854, upload-time = "2025-06-22T19:14:00.978Z" },
+]
+
+[[package]]
+name = "web-test-agent"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "deepagents" },
+    { name = "langchain-openai" },
+    { name = "langgraph" },
+    { name = "python-dotenv" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "deepagents", specifier = ">=0.5,<0.6" },
+    { name = "langchain-openai", specifier = ">=1.0,<2.0" },
+    { name = "langgraph", specifier = ">=1.0,<2.0" },
+    { name = "python-dotenv", specifier = ">=1.0,<2.0" },
 ]
 
 [[package]]
