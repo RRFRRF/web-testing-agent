@@ -7,6 +7,7 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 from webtestagent.cli.main import configure_utf8_runtime, parse_args
 
@@ -41,6 +42,7 @@ class TestParseArgs:
         args = parse_args()
         assert args.url is None
         assert args.scenario is None
+        assert args.scenario_path is None
         assert args.show_full_events is False
         assert args.auto_load_session is False
         assert args.auto_save_session is False
@@ -57,6 +59,32 @@ class TestParseArgs:
         args = parse_args()
         assert args.url == "https://example.com"
         assert args.scenario == "检查首页"
+        assert args.scenario_path is None
+
+    def test_scenario_path(self, monkeypatch):
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["prog", "--scenario-path", "scenarios/onebase.json"],
+        )
+        args = parse_args()
+        assert args.scenario is None
+        assert args.scenario_path == "scenarios/onebase.json"
+
+    def test_scenario_and_path_are_mutually_exclusive(self, monkeypatch):
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--scenario",
+                "检查首页",
+                "--scenario-path",
+                "scenarios/onebase.json",
+            ],
+        )
+        with pytest.raises(SystemExit):
+            parse_args()
 
     def test_show_full_events(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["prog", "--show-full-events"])
@@ -114,7 +142,8 @@ class TestMainIntegration:
                 "webtestagent.cli.main.execute_prepared_run", return_value=mock_result
             ) as mock_execute,
             patch("webtestagent.cli.main.init_env"),
-            patch("webtestagent.cli.main.load_scenario", return_value="test scenario"),
+            patch("webtestagent.cli.main.load_scenario", return_value="test scenario") as mock_load_scenario,
+            patch("webtestagent.cli.main.load_scenario_file") as mock_load_scenario_file,
             patch("webtestagent.cli.main.load_session_defaults", return_value={}),
             patch("builtins.print"),
         ):
@@ -122,6 +151,8 @@ class TestMainIntegration:
 
             main()
 
+            mock_load_scenario.assert_called_once_with(None)
+            mock_load_scenario_file.assert_not_called()
             mock_prepare.assert_called_once()
             mock_execute.assert_called_once()
 
@@ -151,15 +182,141 @@ class TestMainIntegration:
         mock_result.final_report = "OK"
 
         with (
-            patch("webtestagent.cli.main.prepare_run", return_value=mock_prepared),
+            patch("webtestagent.cli.main.prepare_run", return_value=mock_prepared) as mock_prepare,
             patch(
                 "webtestagent.cli.main.execute_prepared_run", return_value=mock_result
             ),
             patch("webtestagent.cli.main.init_env"),
             patch("webtestagent.cli.main.load_scenario", return_value="s"),
+            patch("webtestagent.cli.main.load_scenario_file"),
             patch("webtestagent.cli.main.load_session_defaults", return_value={}),
             patch("builtins.print"),
         ):
             from webtestagent.cli.main import main
 
             main()
+
+            session_config = mock_prepare.call_args.kwargs["session_config"]
+            assert session_config.auto_load is True
+            assert session_config.auto_save is True
+
+    def test_main_uses_scenario_file_loader(self, monkeypatch):
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["prog", "--scenario-path", "scenarios/onebase.json"],
+        )
+
+        mock_prepared = MagicMock()
+        mock_prepared.url = "https://onebase.example"
+        mock_prepared.scenario_desc = "test"
+        mock_prepared.run_context.run_id = "r1"
+        mock_prepared.run_context.run_dir.as_posix.return_value = "/tmp/r1"
+        mock_prepared.cli_command = "pw"
+        mock_prepared.session_state = None
+
+        mock_result = MagicMock()
+        mock_result.final_report = "OK"
+
+        with (
+            patch("webtestagent.cli.main.prepare_run", return_value=mock_prepared) as mock_prepare,
+            patch(
+                "webtestagent.cli.main.execute_prepared_run", return_value=mock_result
+            ),
+            patch("webtestagent.cli.main.init_env"),
+            patch("webtestagent.cli.main.load_scenario") as mock_load_scenario,
+            patch(
+                "webtestagent.cli.main.load_scenario_file",
+                return_value=(
+                    "https://onebase.example",
+                    [{"type": "Action", "text": "执行场景"}],
+                ),
+            ) as mock_load_scenario_file,
+            patch("webtestagent.cli.main.load_session_defaults", return_value={}),
+            patch("builtins.print"),
+        ):
+            from webtestagent.cli.main import main
+
+            main()
+
+            mock_load_scenario_file.assert_called_once_with("scenarios/onebase.json")
+            mock_load_scenario.assert_not_called()
+            assert mock_prepare.call_args.args[0] == "https://onebase.example"
+            assert mock_prepare.call_args.args[1] == [{"type": "Action", "text": "执行场景"}]
+
+    def test_main_prefers_cli_url_over_scenario_file_url(self, monkeypatch):
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--url",
+                "https://cli.example",
+                "--scenario-path",
+                "scenarios/onebase.json",
+            ],
+        )
+
+        mock_prepared = MagicMock()
+        mock_prepared.url = "https://cli.example"
+        mock_prepared.scenario_desc = "test"
+        mock_prepared.run_context.run_id = "r1"
+        mock_prepared.run_context.run_dir.as_posix.return_value = "/tmp/r1"
+        mock_prepared.cli_command = "pw"
+        mock_prepared.session_state = None
+
+        mock_result = MagicMock()
+        mock_result.final_report = "OK"
+
+        with (
+            patch("webtestagent.cli.main.prepare_run", return_value=mock_prepared) as mock_prepare,
+            patch(
+                "webtestagent.cli.main.execute_prepared_run", return_value=mock_result
+            ),
+            patch("webtestagent.cli.main.init_env"),
+            patch(
+                "webtestagent.cli.main.load_scenario_file",
+                return_value=("https://file.example", "场景描述"),
+            ),
+            patch("webtestagent.cli.main.load_session_defaults", return_value={}),
+            patch("builtins.print"),
+        ):
+            from webtestagent.cli.main import main
+
+            main()
+
+            assert mock_prepare.call_args.args[0] == "https://cli.example"
+
+    def test_main_uses_env_url_when_scenario_file_has_no_url(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["prog", "--scenario-path", "scenarios/onebase.json"])
+        monkeypatch.setenv("TARGET_URL", "https://env.example")
+
+        mock_prepared = MagicMock()
+        mock_prepared.url = "https://env.example"
+        mock_prepared.scenario_desc = "test"
+        mock_prepared.run_context.run_id = "r1"
+        mock_prepared.run_context.run_dir.as_posix.return_value = "/tmp/r1"
+        mock_prepared.cli_command = "pw"
+        mock_prepared.session_state = None
+
+        mock_result = MagicMock()
+        mock_result.final_report = "OK"
+
+        with (
+            patch("webtestagent.cli.main.prepare_run", return_value=mock_prepared) as mock_prepare,
+            patch(
+                "webtestagent.cli.main.execute_prepared_run", return_value=mock_result
+            ),
+            patch("webtestagent.cli.main.init_env"),
+            patch(
+                "webtestagent.cli.main.load_scenario_file",
+                return_value=(None, "场景描述"),
+            ),
+            patch("webtestagent.cli.main.load_session_defaults", return_value={}),
+            patch("builtins.print"),
+        ):
+            from webtestagent.cli.main import main
+
+            main()
+
+            assert mock_prepare.call_args.args[0] == "https://env.example"

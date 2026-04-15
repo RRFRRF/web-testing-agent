@@ -80,6 +80,12 @@ Optional variables:
 - `SCENARIO`: default fuzzy scenario
 - `STEPS_JSON`: structured test steps in JSON
 - `WEBAPP_PORT`: local web console port, default `8765`
+- `AUTO_LOAD_SESSION`: auto-load saved browser state before run
+- `AUTO_SAVE_SESSION`: auto-save browser state after run
+- `SESSION_SITE_ID`: override the derived site identifier for session storage
+- `SESSION_ACCOUNT_ID`: account identifier for multi-account sites
+
+If you need to override the session storage directory, use the CLI flag `--session-dir`.
 
 Recommended `.env` file in the project root:
 
@@ -157,7 +163,7 @@ uv run webtestagent --url "https://www.12306.cn/index/"
 uv run webtestagent --url "https://www.12306.cn/index/" --scenario "Test the train ticket search flow from Tianjin to Shanghai, verify that results appear, and proactively report visible issues"
 ```
 
-### Pass structured steps
+### Pass structured steps inline
 
 ```bash
 uv run webtestagent --scenario '[
@@ -167,6 +173,24 @@ uv run webtestagent --scenario '[
   {"type":"Outcome","text":"Train results should appear"}
 ]'
 ```
+
+### Pass a scenario JSON file
+
+```bash
+uv run webtestagent --scenario-path "scenarios/onebase-order-check.json"
+```
+
+The scenario file must be a JSON object and contain at least one of:
+
+- `scenario`: non-empty string
+- `steps`: non-empty array
+
+It may also include:
+
+- `url`
+- `default_url`
+
+For a teammate-oriented OneBase workflow tutorial, see [`test4ob.md`](test4ob.md).
 
 ### Session persistence
 
@@ -204,10 +228,7 @@ Resolution priority for session settings:
 3. `session` block in `scenarios/default.json`
 4. Built-in defaults
 
-
 ## Web Console
-
-The frontend talks to the backend through HTTP APIs and SSE.
 
 Main capabilities:
 
@@ -230,7 +251,7 @@ Main endpoints:
 
 The default config file is `scenarios/default.json`.
 
-Two input styles are supported:
+Current input styles:
 
 ### 1. Fuzzy scenario
 
@@ -254,12 +275,40 @@ Two input styles are supported:
 }
 ```
 
-Loading priority:
+### 3. External scenario file for `--scenario-path`
 
-1. CLI `--scenario`
-2. `SCENARIO` / `STEPS_JSON` env vars
-3. `scenario` in `scenarios/default.json`
-4. `steps` in `scenarios/default.json`
+```json
+{
+  "url": "https://your-onebase.example.com/app/orders",
+  "steps": [
+    {"type": "Context", "text": "I am on the order management page"},
+    {"type": "Action", "text": "Search for order OB-001"},
+    {"type": "Outcome", "text": "The matching record should appear in the list"}
+  ]
+}
+```
+
+Scenario file rules:
+
+- top level must be a JSON object
+- must contain non-empty `scenario` or non-empty `steps`
+- if `steps` is used, every item must contain non-empty `type` and `text`
+- `{today}` placeholders are supported in both `scenario` and `steps[*].text`
+
+Loading priority for scenario content:
+
+1. CLI `--scenario-path`
+2. CLI `--scenario`
+3. `SCENARIO` / `STEPS_JSON` env vars
+4. `scenario` in `scenarios/default.json`
+5. `steps` in `scenarios/default.json`
+
+URL priority:
+
+1. CLI `--url`
+2. scenario file `url` / `default_url`
+3. `TARGET_URL`
+4. `scenarios/default.json`
 
 ## Artifact Strategy
 
@@ -355,7 +404,6 @@ cookies/
 | `AUTO_SAVE_SESSION` | `true`/`false` |
 | `SESSION_SITE_ID` | Override site ID |
 | `SESSION_ACCOUNT_ID` | Account identifier |
-| `SESSION_DIR` | Override cookies directory |
 
 Priority: CLI flags > env vars > `scenarios/default.json` session block > defaults.
 

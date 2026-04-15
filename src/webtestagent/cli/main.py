@@ -10,6 +10,7 @@ from webtestagent.config.settings import configure_utf8_runtime, init_env, parse
 from webtestagent.config.scenarios import (
     get_default_url,
     load_scenario,
+    load_scenario_file,
     load_session_defaults,
 )
 from webtestagent.output.formatters import format_event_for_cli
@@ -23,9 +24,14 @@ from webtestagent.core.session import SessionPersistenceConfig
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Minimal Deep Agents web testing MVP")
     parser.add_argument("--url", help="Target URL")
-    parser.add_argument(
+    scenario_group = parser.add_mutually_exclusive_group()
+    scenario_group.add_argument(
         "--scenario",
         help="Test scenario: a plain text description or a JSON steps array",
+    )
+    scenario_group.add_argument(
+        "--scenario-path",
+        help="Path to a JSON scenario file containing scenario/steps and optional url",
     )
     parser.add_argument(
         "--show-full-events",
@@ -61,9 +67,20 @@ def main() -> None:
     init_env()
 
     args = parse_args()
-    url = (args.url or os.getenv("TARGET_URL") or get_default_url()).strip()
-    raw_scenario = args.scenario or os.getenv("SCENARIO") or os.getenv("STEPS_JSON")
-    scenario = load_scenario(raw_scenario)
+    scenario_file_url: str | None = None
+
+    if args.scenario_path:
+        scenario_file_url, scenario = load_scenario_file(args.scenario_path)
+    else:
+        raw_scenario = args.scenario or os.getenv("SCENARIO") or os.getenv("STEPS_JSON")
+        scenario = load_scenario(raw_scenario)
+
+    url = (
+        args.url
+        or scenario_file_url
+        or os.getenv("TARGET_URL")
+        or get_default_url()
+    ).strip()
 
     # ── session 配置（CLI > env > scenarios/default.json） ──────
     session_defaults = load_session_defaults()

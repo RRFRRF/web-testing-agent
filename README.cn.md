@@ -84,7 +84,8 @@
 - `AUTO_SAVE_SESSION`：是否在 run 后自动保存登录态
 - `SESSION_SITE_ID`：显式指定登录态站点标识
 - `SESSION_ACCOUNT_ID`：显式指定账号标识
-- `SESSION_DIR`：覆盖默认登录态目录（默认 `cookies/`）
+
+如果你需要覆盖 session 存储目录，当前代码支持的是 CLI 参数 `--session-dir`，不是环境变量。
 
 建议在项目根目录创建 `.env`：
 
@@ -162,7 +163,7 @@ uv run webtestagent --url "https://www.12306.cn/index/"
 uv run webtestagent --url "https://www.12306.cn/index/" --scenario "测试从天津到上海的购票查询流程，验证是否出现车次结果，并主动发现页面异常"
 ```
 
-### 传入结构化步骤
+### 传入内联结构化步骤
 
 ```bash
 uv run webtestagent --scenario '[
@@ -172,6 +173,24 @@ uv run webtestagent --scenario '[
   {"type":"Outcome","text":"应出现车次搜索结果"}
 ]'
 ```
+
+### 传入 scenario JSON 文件
+
+```bash
+uv run webtestagent --scenario-path "scenarios/onebase-order-check.json"
+```
+
+scenario 文件顶层必须是 JSON object，且至少满足其一：
+
+- `scenario`：非空字符串
+- `steps`：非空数组
+
+文件中也可以额外包含：
+
+- `url`
+- `default_url`
+
+如果你是给同学编写 OneBase 用例，可直接参考 [`test4ob.md`](test4ob.md)。
 
 ### 登录态持久化
 
@@ -209,7 +228,6 @@ cookies/{site_id}/{account_id}/meta.json
 3. `scenarios/default.json` 里的 `session` 配置块
 4. 内建默认值
 
-
 ## Web 控制台用法
 
 启动后，前端会通过 HTTP API + SSE 与后端通信。
@@ -235,7 +253,7 @@ cookies/{site_id}/{account_id}/meta.json
 
 默认配置文件是 `scenarios/default.json`。
 
-当前支持两种输入模式：
+当前支持三种输入方式：
 
 ### 1. 模糊场景描述
 
@@ -259,12 +277,40 @@ cookies/{site_id}/{account_id}/meta.json
 }
 ```
 
-加载优先级如下：
+### 3. `--scenario-path` 使用的外部 scenario 文件
 
-1. CLI `--scenario`
-2. 环境变量 `SCENARIO` / `STEPS_JSON`
-3. `scenarios/default.json` 中的 `scenario`
-4. `scenarios/default.json` 中的 `steps`
+```json
+{
+  "url": "https://your-onebase.example.com/app/orders",
+  "steps": [
+    {"type": "Context", "text": "我已进入订单管理页面"},
+    {"type": "Action", "text": "搜索订单 OB-001"},
+    {"type": "Outcome", "text": "列表中应出现匹配记录"}
+  ]
+}
+```
+
+scenario 文件规则：
+
+- 顶层必须是 JSON object
+- 必须包含非空 `scenario` 或非空 `steps`
+- 如果使用 `steps`，每个元素都必须包含非空的 `type` 和 `text`
+- `scenario` 与 `steps[*].text` 都支持 `{today}` 占位符
+
+场景内容加载优先级：
+
+1. CLI `--scenario-path`
+2. CLI `--scenario`
+3. 环境变量 `SCENARIO` / `STEPS_JSON`
+4. `scenarios/default.json` 中的 `scenario`
+5. `scenarios/default.json` 中的 `steps`
+
+URL 优先级：
+
+1. CLI `--url`
+2. scenario 文件中的 `url` / `default_url`
+3. 环境变量 `TARGET_URL`
+4. `scenarios/default.json`
 
 ## Artifact 设计
 
