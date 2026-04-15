@@ -294,6 +294,99 @@ src/webtestagent/
    └─ skills/
 ```
 
+### 2.1.8 框架选型建议
+
+这一层需要明确：**三个业务服务不应该统一使用同一种 agent 框架，而应该按任务形态选型。**
+
+推荐结论：
+
+- **feature：LangChain**
+- **scenario：LangChain**
+- **execution：Deep Agents**
+- **pipeline：常规 orchestration（Celery / service 编排），不使用 Deep Agents 作为主承载**
+
+#### 为什么 feature 用 LangChain
+
+feature-service 的核心任务是：
+- 文档读取
+- 文档分块/标准化
+- 结构化信息抽取
+- 结果落库
+
+这类任务更像**受控的生成管道**，而不是开放式长程代理任务。
+
+所以更适合：
+- 用 LangChain 组织 prompt、structured output、parser、retriever、loader
+- 把 feature 抽取拆成可测试的几个步骤
+- 保持输入输出稳定，便于回归测试和多人维护
+
+不建议这里默认上 Deep Agents，因为：
+- feature 提取不需要浏览器操作
+- 不需要文件系统级长期自主规划
+- 不需要 task delegation / todo / skills 动态加载
+- 过强的 agent 自主性反而会降低结果稳定性
+
+#### 为什么 scenario 用 LangChain
+
+scenario-service 的核心任务是：
+- 读取 Feature
+- 生成 Gherkin
+- 生成标准化 steps
+- 做结构校验与格式收敛
+
+这同样属于**结构化生成 + 标准化转换**问题，第一版更适合用 LangChain。
+
+适合方式：
+- prompt + structured output
+- step normalizer
+- 校验失败后重试
+- 必要时把生成与规范化拆成两段链路
+
+不建议一开始就用 Deep Agents，因为：
+- scenario 生成通常不需要开放式工具探索
+- 不需要 execution 那种长会话、文件管理、browser tools
+- 你更需要的是稳定、可控、容易定位问题的输出
+
+补充说明：
+- 如果后续 scenario 模块演进为“多轮校验 -> 规则修正 -> 交叉验证 -> 人工确认插点”的复杂流程，届时可以考虑从 LangChain 升级到 LangGraph。
+- 但**当前推荐起点仍然是 LangChain**，避免过早复杂化。
+
+#### 为什么 execution 用 Deep Agents
+
+execution-service 的核心任务是：
+- 根据 scenario/steps 执行长链路自动测试
+- 调用 browser tools
+- 在运行过程中持续采集 snapshot / screenshot / console / network artifact
+- 处理中途观察、决策、重试、继续推进
+- 最终生成 report
+
+这正是 Deep Agents 最有优势的场景：
+- 长时任务
+- 多步骤自主推进
+- 文件与 artifact 管理
+- browser tools 调用
+- 必要时按上下文做中间决策
+
+而且你当前 `mvp-deepagents` 已经具备这部分基础：
+- `src/webtestagent/core/agent_builder.py`
+- `src/webtestagent/core/runner.py`
+- `src/webtestagent/tools/browser_tools.py`
+
+所以 execution-service 应继续以 **Deep Agents 作为主执行内核**，而不是回退成普通 LangChain agent。
+
+#### 选型落地原则
+
+- `feature-service`：LangChain chain / structured pipeline
+- `scenario-service`：LangChain chain / structured pipeline
+- `execution-service`：Deep Agents + browser tools + artifact/session 管理
+- `pipeline-service`：Celery chain/chord 或 service orchestration，不承担业务 agent 职责
+
+这套搭配的好处是：
+- 上游 feature/scenario 保持稳定、可控、易测试
+- 下游 execution 保持强执行力和长任务处理能力
+- 三个服务的 prompts、skills、上下文彻底隔离
+- 不会因为“统一技术栈”而把简单问题复杂化
+
 ### 2.1.9 四个服务的进一步细化设计
 
 下面把你要的两部分进一步展开：
