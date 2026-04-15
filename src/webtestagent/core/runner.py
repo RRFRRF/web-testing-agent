@@ -76,7 +76,7 @@ def build_thread_id(run_id: str) -> str:
 
 
 def inject_run_environment(run_context: RunContext) -> None:
-    """注入当前运行上下文到环境变量，兼容 browser tools 回退逻辑。"""
+    """注入当前运行上下文到环境变量，仅保留给旧路径/手动调试使用。"""
     os.environ["RUN_ID"] = run_context.run_id
     os.environ["OUTPUTS_DIR"] = run_context.run_dir.as_posix()
     os.environ["MANIFEST_PATH"] = run_context.manifest_path.as_posix()
@@ -93,7 +93,6 @@ def prepare_run(
     init_env()
 
     run_context = create_run_context()
-    inject_run_environment(run_context)
     ensure_manifest(
         run_context.manifest_path, run_id=run_context.run_id, target_url=url
     )
@@ -203,7 +202,6 @@ def execute_prepared_run(
     show_full_events: bool = False,
 ) -> RunResult:
     """执行一次已准备好的测试运行。"""
-    inject_run_environment(prepared.run_context)
     emit_event(
         on_event,
         {
@@ -228,11 +226,10 @@ def execute_prepared_run(
             config=prepared.config,
             stream_mode=["updates"],
         ):
-            if isinstance(chunk, tuple):
-                for event in events_from_stream_chunk(
-                    chunk, show_full_events=show_full_events
-                ):
-                    emit_event(on_event, event)
+            for event in events_from_stream_chunk(
+                chunk, show_full_events=show_full_events
+            ):
+                emit_event(on_event, event)
 
         # 循环结束后从 agent state 取最终结果，避免中间非元组 chunk 误判
         final_result = final_result_from_state(prepared.agent, prepared.config)

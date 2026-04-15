@@ -19,7 +19,6 @@ from webtestagent.core.artifacts import (
     save_text_artifact,
     slugify_label,
 )
-from webtestagent.config.settings import OUTPUTS_DIR
 
 
 class OpenPageInput(BaseModel):
@@ -45,18 +44,23 @@ def _runtime_context(config: RunnableConfig | None) -> dict[str, Any]:
     context = config.get("context")
     if isinstance(context, dict):
         return context
+    configurable = config.get("configurable")
+    if isinstance(configurable, dict):
+        nested_context = configurable.get("context")
+        if isinstance(nested_context, dict):
+            return nested_context
     return {}
 
 
 def _get_run_values(config: RunnableConfig | None) -> tuple[str, Path]:
     context = _runtime_context(config)
-    run_id = str(context.get("run_id") or os.getenv("RUN_ID") or "adhoc-run")
-    outputs_dir_raw = (
-        context.get("outputs_dir")
-        or os.getenv("OUTPUTS_DIR")
-        or str(OUTPUTS_DIR / run_id)
-    )
-    return run_id, Path(outputs_dir_raw)
+    run_id_value = context.get("run_id")
+    outputs_dir_value = context.get("outputs_dir")
+    if not run_id_value or not outputs_dir_value:
+        raise RuntimeError(
+            "Missing run context in tool config: run_id and outputs_dir are required"
+        )
+    return str(run_id_value), Path(str(outputs_dir_value))
 
 
 def _artifact_dir(outputs_dir: Path, name: str) -> Path:

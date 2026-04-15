@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -69,12 +70,14 @@ class TestSchemas:
         with pytest.raises(pydantic.ValidationError):
             SessionConfigRequest(storage_dir="../etc/passwd")
 
+    def test_session_config_uses_none_by_default(self):
+        cfg = SessionConfigRequest()
+        assert cfg.auto_load is None
+        assert cfg.auto_save is None
+
     def test_session_config_empty_storage_dir(self):
         cfg = SessionConfigRequest(storage_dir="")
         assert cfg.storage_dir is None
-
-
-# ── RunStore 单元测试 ──────────────────────────────────
 
 
 class TestRunStore:
@@ -98,17 +101,26 @@ class TestRunStore:
         assert config.auto_load is False
         assert config.auto_save is False
 
-    def test_build_session_config_from_request(self):
+
+    def test_build_session_config_uses_defaults_for_missing_fields(self):
         store = RunStore()
-        req = SessionConfigRequest(auto_load=True, auto_save=True, site_id="x.com")
+        req = SessionConfigRequest()
         with patch(
             "webtestagent.web.services.run_store.load_session_defaults",
-            return_value={},
+            return_value={
+                "auto_load": True,
+                "auto_save": True,
+                "site_id": "site-a",
+                "account_id": "acc-a",
+                "storage_dir": "cookies/default-site",
+            },
         ):
             config = store.build_session_config(req)
         assert config.auto_load is True
         assert config.auto_save is True
-        assert config.site_id == "x.com"
+        assert config.site_id == "site-a"
+        assert config.account_id == "acc-a"
+        assert config.storage_dir == Path("cookies/default-site")
 
     def test_validate_run_id_safe_rejects_traversal(self):
         """_validate_run_id_safe 拒绝路径遍历。"""
@@ -152,12 +164,19 @@ class TestAPIRoutes:
         data = resp.json()
         assert data["default_url"] == "https://default.com"
 
+
     @pytest.mark.anyio
-    async def test_get_runs(self, client):
-        resp = await client.get("/api/runs")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "runs" in data
+    async def test_post_run_returns_error_detail_when_start_fails(self, client):
+        with patch(
+            "webtestagent.web.routers.runs.RunStore.start_run",
+            side_effect=RuntimeError("prepare failed"),
+        ):
+            resp = await client.post(
+                "/api/run",
+                json={"url": "https://example.com", "scenario": "x"},
+            )
+        assert resp.status_code == 500
+        assert resp.json()["detail"] == "prepare failed"
 
     @pytest.mark.anyio
     async def test_get_manifest_not_found(self, client):

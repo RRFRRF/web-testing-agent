@@ -180,8 +180,8 @@ class RunStore:
                             "payload": self.snapshot(session).model_dump(),
                         }
                         return
-                    # 非阻塞等待：用 asyncio.to_thread 避免卡住事件循环
-                    await asyncio.to_thread(session.condition.wait, timeout=15)
+                    # 非阻塞等待：在线程中持有 condition 锁后再 wait，避免 RuntimeError
+                    await asyncio.to_thread(_wait_on_condition, session.condition, 15)
                     yield {"event": "keepalive"}
                     continue
 
@@ -207,8 +207,9 @@ class RunStore:
         deadline = time.monotonic() + timeout
         for session in active:
             remaining = max(0, deadline - time.monotonic())
-            # 使用 asyncio.to_thread 避免阻塞事件循环
-            await asyncio.to_thread(session.condition.wait, timeout=remaining)
+            if remaining <= 0:
+                return
+            await asyncio.to_thread(_wait_for_terminal, session, remaining)
 
     # ── 公开接口 ───────────────────────────────────────
 
@@ -242,11 +243,13 @@ class RunStore:
                 auto_save=bool(defaults.get("auto_save", False)),
                 site_id=defaults.get("site_id") or None,
                 account_id=defaults.get("account_id") or None,
-                storage_dir=None,
+                storage_dir=(Path(defaults["storage_dir"]) if defaults.get("storage_dir") else None),
             )
         storage_dir: Path | None = None
         if req.storage_dir:
             storage_dir = Path(req.storage_dir)
+        elif defaults.get("storage_dir"):
+            storage_dir = Path(defaults["storage_dir"])
         return SessionPersistenceConfig(
             auto_load=bool(
                 req.auto_load
@@ -331,6 +334,23 @@ def _append_event(session: RunSession, event: dict[str, Any]) -> None:
         session.next_event_id += 1
         session.events.append({"id": event_id, **event})
         session.condition.notify_all()
+
+
+def _wait_on_condition(condition: threading.Condition, timeout: float) -> None:
+    """在线程内安全等待 condition。"""
+    with condition:
+        condition.wait(timeout=timeout)
+
+
+def _wait_for_terminal(session: RunSession, timeout: float) -> None:
+    """等待会话进入终止态，超时后返回。"""
+    deadline = time.monotonic() + timeout
+    with session.condition:
+        while session.status not in _TERMINAL_STATES:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            session.condition.wait(timeout=remaining)
 
 
 def _run_worker(session: RunSession, prepared: PreparedRun) -> None:

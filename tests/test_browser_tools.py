@@ -63,6 +63,15 @@ class TestRuntimeContext:
         config = {"context": {"run_id": "r1", "outputs_dir": "/tmp"}}
         assert _runtime_context(config) == {"run_id": "r1", "outputs_dir": "/tmp"}
 
+    def test_dict_with_configurable_context(self):
+        config = {
+            "configurable": {
+                "thread_id": "t1",
+                "context": {"run_id": "r1", "outputs_dir": "/tmp"},
+            }
+        }
+        assert _runtime_context(config) == {"run_id": "r1", "outputs_dir": "/tmp"}
+
     def test_dict_without_context(self):
         assert _runtime_context({"other": 1}) == {}
 
@@ -81,22 +90,14 @@ class TestGetRunValues:
         assert run_id == "r1"
         assert outputs_dir == Path("/tmp/out")
 
-    def test_fallback_env_vars(self, monkeypatch):
-        monkeypatch.setenv("RUN_ID", "env-run")
-        monkeypatch.setenv("OUTPUTS_DIR", "/env/out")
-        run_id, outputs_dir = _get_run_values(None)
-        assert run_id == "env-run"
-        assert outputs_dir == Path("/env/out")
+    def test_missing_context_raises(self):
+        with pytest.raises(RuntimeError, match="Missing run context"):
+            _get_run_values(None)
 
-    def test_default_adhoc(self, monkeypatch):
-        monkeypatch.delenv("RUN_ID", raising=False)
-        monkeypatch.delenv("OUTPUTS_DIR", raising=False)
-        run_id, outputs_dir = _get_run_values(None)
-        assert run_id == "adhoc-run"
-        assert "adhoc-run" in str(outputs_dir)
-
-
-# ── _artifact_dir / _manifest_path ───────────────────────
+    def test_missing_outputs_dir_raises(self):
+        config = {"context": {"run_id": "r1"}}
+        with pytest.raises(RuntimeError, match="Missing run context"):
+            _get_run_values(config)
 
 
 class TestArtifactHelpers:

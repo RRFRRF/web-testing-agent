@@ -115,7 +115,10 @@ async def create_run(
 ) -> RunCreatedResponse:
     url = req.url or get_default_url()
     session_config = store.build_session_config(req.session)
-    session = store.start_run(url, req.scenario, session_config)
+    try:
+        session = store.start_run(url, req.scenario, session_config)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return RunCreatedResponse(run=_session_to_snapshot(session))
 
 
@@ -212,6 +215,10 @@ async def stream_run(
     run_id: str = Depends(validate_run_id),
     store: RunStore = Depends(get_run_store),
 ) -> EventSourceResponse:
+    session = store.get_session(run_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+
     async def event_generator():
         async for event in store.stream_events(run_id):
             if event.get("event") == "keepalive":
@@ -224,3 +231,4 @@ async def stream_run(
                 }
 
     return EventSourceResponse(event_generator())
+

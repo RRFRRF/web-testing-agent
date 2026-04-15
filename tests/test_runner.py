@@ -308,6 +308,34 @@ class TestPrepareRun:
             assert prepared.session_state is None
 
 
+# ── prepare_run 不再注入全局环境变量 ─────────────────────
+
+
+class TestPrepareRunContextIsolation:
+    def test_prepare_run_does_not_inject_env(self, tmp_path):
+        with (
+            patch("webtestagent.core.runner.init_env"),
+            patch("webtestagent.core.runner.create_run_context") as mock_ctx,
+            patch("webtestagent.core.runner.ensure_manifest"),
+            patch("webtestagent.core.runner.update_manifest_target_url"),
+            patch("webtestagent.core.runner.build_prompt", return_value="test prompt"),
+            patch("webtestagent.core.runner.resolve_playwright_cli", return_value="pw"),
+            patch("webtestagent.core.runner.build_agent", return_value=MagicMock()),
+            patch("webtestagent.core.runner.inject_run_environment") as inject_mock,
+        ):
+            mock_ctx.return_value = RunContext(
+                run_id="test-run",
+                run_dir=tmp_path,
+                snapshots_dir=tmp_path / "snapshots",
+                screenshots_dir=tmp_path / "screenshots",
+                console_dir=tmp_path / "console",
+                network_dir=tmp_path / "network",
+                manifest_path=tmp_path / "manifest.json",
+            )
+            prepare_run("https://example.com", "test scenario")
+            inject_mock.assert_not_called()
+
+
 # ── execute_prepared_run 集成测试 ────────────────────────
 
 
@@ -340,7 +368,6 @@ class TestExecutePreparedRun:
             thread_id="t1",
         )
 
-        # Mock agent.stream to yield a valid tuple chunk
         mock_state = MagicMock()
         mock_state.values = {"messages": ["test result"]}
         prepared.agent.stream.return_value = iter(
@@ -397,3 +424,4 @@ class TestExecutePreparedRun:
         with patch("webtestagent.core.runner.inject_run_environment"):
             with pytest.raises(RuntimeError, match="agent crashed"):
                 execute_prepared_run(prepared)
+

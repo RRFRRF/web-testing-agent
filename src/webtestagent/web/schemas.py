@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ntpath
+import posixpath
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
@@ -13,8 +15,8 @@ from pydantic import BaseModel, Field, field_validator
 class SessionConfigRequest(BaseModel):
     """POST /api/run 中 session 配置的请求模型。"""
 
-    auto_load: bool = False
-    auto_save: bool = False
+    auto_load: bool | None = None
+    auto_save: bool | None = None
     site_id: str | None = None
     account_id: str | None = None
     storage_dir: str | None = None
@@ -23,13 +25,22 @@ class SessionConfigRequest(BaseModel):
     @classmethod
     def validate_storage_dir(cls, v: str | None) -> str | None:
         """校验 storage_dir：必须是相对路径且不含 .."""
-        if v is not None and v != "":
-            p = Path(v)
-            if p.is_absolute() or ".." in p.parts:
-                raise ValueError(
-                    f"storage_dir must be a relative path without '..': {v}"
-                )
-        return v if v else None
+        if v is None:
+            return None
+        normalized = v.strip()
+        if not normalized:
+            return None
+
+        p = Path(normalized)
+        if (
+            posixpath.isabs(normalized)
+            or ntpath.isabs(normalized)
+            or ".." in p.parts
+        ):
+            raise ValueError(
+                f"storage_dir must be a relative path without '..': {normalized}"
+            )
+        return normalized
 
 
 class RunRequest(BaseModel):

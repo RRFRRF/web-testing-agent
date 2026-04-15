@@ -506,7 +506,7 @@
       const openScreenshotLink = document.getElementById('openScreenshotLink');
       const eventList = document.getElementById('eventList');
 
-      const state = { currentRunId: null, eventSource: null, screenshotTimer: null, lastScreenshotPath: null };
+      const state = { currentRunId: null, eventSource: null, screenshotTimer: null, lastScreenshotPath: null, ws: null, lastEventId: 0, eventPollTimer: null };
 
       function escapeHtml(str) {
         const d = document.createElement('div');
@@ -533,9 +533,9 @@
         const mode = event.mode || '';
         if (ch === 'system' && mode === 'report') return { dot: 'dot-report', kind: '结果摘要' };
         if (ch === 'system') return { dot: 'dot-system', kind: 'system' };
-        if (ch === 'model') return { dot: 'dot-model', kind: 'model' };
+        if (ch === 'model') return { dot: 'dot-agent', kind: 'agent' };
         if (ch === 'tools') return { dot: 'dot-tools', kind: 'tools' };
-        return { dot: '', kind: ch || 'event' };
+        return { dot: 'dot-other', kind: ch || 'event' };
       }
 
       function summarizeEvent(event) {
@@ -612,6 +612,12 @@
       }
 
       function appendEvent(event) {
+        if (!event) return;
+        if (event.id) {
+          const nextId = Number(event.id) || 0;
+          if (nextId && nextId <= state.lastEventId) return;
+          state.lastEventId = Math.max(state.lastEventId, nextId);
+        }
         if (eventList.querySelector('.log-empty')) eventList.innerHTML = '';
         eventList.insertAdjacentHTML('beforeend', renderEvent(event));
         eventList.scrollTop = eventList.scrollHeight;
@@ -627,9 +633,49 @@
         state.lastScreenshotPath = null;
       }
 
+      async function fetchJsonOrThrow(url, options = undefined) {
+        const res = await fetch(url, options);
+        const contentType = res.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
+        const data = isJson ? await res.json() : await res.text();
+        if (!res.ok) {
+          const detail = isJson
+            ? (data.detail || data.error || JSON.stringify(data))
+            : String(data || res.statusText || '请求失败');
+          throw new Error(detail);
+        }
+        return data;
+      }
+
+      function stopEventPolling() {
+        if (state.eventPollTimer) {
+          clearInterval(state.eventPollTimer);
+          state.eventPollTimer = null;
+        }
+      }
+
+      async function backfillEvents() {
+        if (!state.currentRunId) return;
+        try {
+          const data = await fetchJsonOrThrow(`/api/runs/${state.currentRunId}/events`);
+          const events = Array.isArray(data.events) ? data.events : [];
+          for (const event of events) handleRealtimeEvent(event);
+          if (data.status && ['completed', 'failed', 'cancelled'].includes(data.status)) {
+            stopEventPolling();
+          }
+        } catch (error) {
+          hint.textContent = `日志回退拉取失败：${error.message || error}`;
+        }
+      }
+
+      function startEventPolling() {
+        stopEventPolling();
+        backfillEvents();
+        state.eventPollTimer = setInterval(backfillEvents, 3000);
+      }
+
       async function loadDefaults() {
-        const res = await fetch('/api/defaults');
-        const data = await res.json();
+        const data = await fetchJsonOrThrow('/api/defaults');
         urlInput.value = data.default_url || '';
         scenarioInput.value = data.scenario || '';
         if (data.session) {
@@ -640,8 +686,7 @@
       }
 
       async function loadLatestRunMeta(preferredRunId = null) {
-        const res = await fetch('/api/runs');
-        const data = await res.json();
+        const data = await fetchJsonOrThrow('/api/runs');
         const runs = data.runs || [];
         const run = preferredRunId
           ? runs.find(item => item.run_id === preferredRunId)
@@ -663,8 +708,7 @@
       async function pollScreenshot() {
         if (!state.currentRunId) return;
         try {
-          const res = await fetch(`/api/runs/${state.currentRunId}/latest-screenshot`);
-          const data = await res.json();
+          const data = await fetchJsonOrThrow(`/api/runs/${state.currentRunId}/latest-screenshot`);
           if (data.path && data.path !== state.lastScreenshotPath) {
             state.lastScreenshotPath = data.path;
             const ts = Date.now();
@@ -688,31 +732,54 @@
         }
       }
 
+      function handleRealtimeEvent(event) {
+        if (!event || event.event === 'keepalive' || event.event === 'pong') return;
+        if (event.event === 'cancelled') {
+          setStatus('failed', '运行已取消');
+          stopEventPolling();
+          return;
+        }
+        appendEvent(event);
+        if (event.channel === 'system') {
+          if (event.mode === 'start') setStatus('running', '正在执行测试');
+          if (event.mode === 'error') {
+            setStatus('failed', event.summary || '运行失败');
+            stopEventPolling();
+          }
+          if (event.mode === 'complete' || event.mode === 'status') {
+            setStatus('completed', '测试完成');
+            stopEventPolling();
+          }
+        }
+      }
+
       function connectSSE(runId) {
         if (state.eventSource) { state.eventSource.close(); state.eventSource = null; }
         const es = new EventSource(`/api/run/${runId}/stream`);
         state.eventSource = es;
         es.addEventListener('message', (e) => {
           try {
-            const event = JSON.parse(e.data);
-            appendEvent(event);
-            if (event.channel === 'system') {
-              if (event.mode === 'start') setStatus('running', '正在执行测试');
-              if (event.mode === 'error') setStatus('failed', event.summary || '运行失败');
-              if (event.mode === 'complete' || event.mode === 'status') setStatus('completed', '测试完成');
-            }
+            handleRealtimeEvent(JSON.parse(e.data));
           } catch {}
         });
-        es.onerror = () => { es.close(); state.eventSource = null; stopScreenshotPolling(); pollScreenshot(); };
+        es.onerror = () => {
+          es.close();
+          state.eventSource = null;
+          hint.textContent = '实时日志连接中断，已切换为轮询回退。';
+          startEventPolling();
+        };
       }
 
+
       async function hydrateRun(runId) {
-        if (!runId) return;
+        if (!runId) throw new Error('后端未返回有效 run_id');
         state.currentRunId = runId;
+        state.lastEventId = 0;
         runIdText.textContent = runId;
         clearEvents();
         resetPreview();
         startScreenshotPolling();
+        startEventPolling();
         connectSSE(runId);
       }
 
@@ -720,11 +787,13 @@
         try {
           startBtn.disabled = true;
           startBtn.textContent = '启动中...';
+          stopEventPolling();
           clearEvents();
           resetPreview();
+          state.lastEventId = 0;
           setStatus('queued', '正在创建运行');
 
-          const res = await fetch('/api/run', {
+          const data = await fetchJsonOrThrow('/api/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -737,13 +806,13 @@
               },
             }),
           });
-          const data = await res.json();
           const runId = data.run && data.run.run_id;
+          if (!runId) throw new Error('创建运行成功，但响应中缺少 run_id');
           hint.textContent = '运行已启动，正在实时接收日志和截图。';
           await hydrateRun(runId);
         } catch (error) {
           setStatus('failed', '启动失败');
-          hint.textContent = `启动失败：${error}`;
+          hint.textContent = `启动失败：${error.message || error}`;
         } finally {
           startBtn.disabled = false;
           startBtn.textContent = '启动运行';
@@ -752,8 +821,10 @@
 
       resetBtn.addEventListener('click', () => {
         if (state.eventSource) { state.eventSource.close(); state.eventSource = null; }
+        stopEventPolling();
         stopScreenshotPolling();
         state.currentRunId = null;
+        state.lastEventId = 0;
         clearEvents();
         resetPreview();
         runIdText.textContent = '-';
