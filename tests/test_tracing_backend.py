@@ -31,6 +31,8 @@ def test_traces_matching_playwright_commands_returns_only_summary(tmp_path):
     response = backend.execute("playwright-cli click e3")
     assert response.output == "trace saved"
     assert recorded[0]["command_type"] == "click"
+    assert recorded[0]["is_read_command"] is False
+    assert recorded[0]["screenshot_command"] is not None
 
 
 def test_passthrough_non_playwright_commands(tmp_path):
@@ -69,3 +71,78 @@ def test_internal_screenshot_reuses_resolved_cli_prefix(tmp_path):
     assert backend.calls == [
         ("npx playwright-cli screenshot --filename=shots/screen.png", None)
     ]
+
+
+def test_internal_screenshot_uses_full_path_prefix(tmp_path):
+    backend = FakeBackend()
+    tracing_backend = TracingShellBackend(
+        backend=backend,
+        recorder=SimpleNamespace(record_command_trace=lambda **kwargs: None),
+    )
+
+    tracing_backend._run_internal_screenshot(
+        Path("shots/screen.png"),
+        r"C:\nvm4w\nodejs\playwright-cli.CMD click e3",
+    )
+
+    assert backend.calls == [
+        (r"C:\nvm4w\nodejs\playwright-cli.CMD screenshot --filename=shots/screen.png", None)
+    ]
+
+
+def test_traces_full_path_playwright_commands(tmp_path):
+    recorded = []
+
+    class FakeRecorder:
+        def record_command_trace(self, **kwargs):
+            recorded.append(kwargs)
+            return SimpleNamespace(summary="trace saved", warnings=[])
+
+    backend = TracingShellBackend(
+        backend=FakeBackend(),
+        recorder=FakeRecorder(),
+    )
+
+    response = backend.execute(r"C:\nvm4w\nodejs\playwright-cli.CMD open https://example.com")
+    assert response.output == "trace saved"
+    assert recorded[0]["command_type"] == "open"
+
+
+def test_snapshot_command_traced_without_extra_screenshot(tmp_path):
+    recorded = []
+
+    class FakeRecorder:
+        def record_command_trace(self, **kwargs):
+            recorded.append(kwargs)
+            return SimpleNamespace(summary="trace saved", warnings=[])
+
+    backend = TracingShellBackend(
+        backend=FakeBackend(),
+        recorder=FakeRecorder(),
+    )
+
+    response = backend.execute("playwright-cli snapshot")
+    assert response.output == "trace saved"
+    assert recorded[0]["command_type"] == "snapshot"
+    assert recorded[0]["is_read_command"] is True
+    assert recorded[0]["screenshot_command"] is None
+
+
+def test_screenshot_command_traced_without_extra_screenshot(tmp_path):
+    recorded = []
+
+    class FakeRecorder:
+        def record_command_trace(self, **kwargs):
+            recorded.append(kwargs)
+            return SimpleNamespace(summary="trace saved", warnings=[])
+
+    backend = TracingShellBackend(
+        backend=FakeBackend(),
+        recorder=FakeRecorder(),
+    )
+
+    response = backend.execute("playwright-cli screenshot --filename=out.png")
+    assert response.output == "trace saved"
+    assert recorded[0]["command_type"] == "screenshot"
+    assert recorded[0]["is_read_command"] is True
+    assert recorded[0]["screenshot_command"] is None

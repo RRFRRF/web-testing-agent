@@ -21,16 +21,21 @@ class TracingShellBackend:
             return response
 
         try:
+            screenshot_command = None
+            if not decision.is_read_command:
+                screenshot_command = lambda file_path: self._run_internal_screenshot(
+                    file_path,
+                    decision.normalized_command,
+                )
+
             result = self._recorder.record_command_trace(
                 phase="action",
                 command=decision.normalized_command,
                 command_type=decision.command_type or "unknown",
                 exit_code=response.exit_code,
                 output=response.output,
-                screenshot_command=lambda file_path: self._run_internal_screenshot(
-                    file_path,
-                    decision.normalized_command,
-                ),
+                screenshot_command=screenshot_command,
+                is_read_command=decision.is_read_command,
             )
             return type(response)(
                 output=result.summary,
@@ -54,7 +59,7 @@ class TracingShellBackend:
         return internal.exit_code, internal.output
 
     def _resolve_cli_prefix(self, command: str) -> str:
-        parts = shlex.split(command)
-        if parts[:2] == ["npx", "playwright-cli"]:
-            return "npx playwright-cli"
-        return "playwright-cli"
+        parts = shlex.split(command, posix=False)
+        if len(parts) >= 2 and parts[0].lower() == "npx":
+            return f"{parts[0]} {parts[1]}"
+        return parts[0]

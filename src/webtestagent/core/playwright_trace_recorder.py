@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from webtestagent.config.settings import now_iso
 from webtestagent.core.artifacts import (
@@ -57,13 +58,15 @@ class PlaywrightTraceRecorder:
         command_type: str,
         exit_code: int,
         output: str,
-        screenshot_command: ScreenshotCommand,
+        screenshot_command: ScreenshotCommand | None = None,
+        is_read_command: bool = False,
     ) -> TraceRecordResult:
         warnings: list[str] = []
         step_index = self._next_step_index()
         step_slug = f"{step_index:03d}-{phase}-{slugify_label(command_type)}"
         label = f"{phase}-{step_index:03d}-{slugify_label(command_type)}"
 
+        # stdout
         stdout_record = save_text_artifact(
             manifest_path=self.manifest_path,
             run_id=self.run_id,
@@ -74,37 +77,73 @@ class PlaywrightTraceRecorder:
             content=output,
         )
 
-        snapshot_text = self._extract_snapshot_text(output)
+        # snapshot & screenshot share the same step_slug prefix
         snapshot_record = None
-        if snapshot_text:
-            snapshot_record = save_text_artifact(
-                manifest_path=self.manifest_path,
-                run_id=self.run_id,
-                artifact_dir=self.snapshots_dir,
-                artifact_type="trace-snapshot",
-                label=label,
-                suffix=".yaml",
-                content=snapshot_text,
-            )
-        else:
-            warnings.append("snapshot missing from playwright output")
-
-        screenshot_path = self.screenshots_dir / f"{step_index:03d}-{slugify_label(command_type)}.png"
-        screenshot_exit_code, screenshot_output = screenshot_command(screenshot_path)
         screenshot_record = None
-        if screenshot_exit_code == 0 and screenshot_path.exists():
-            screenshot_record = register_file_artifact(
-                manifest_path=self.manifest_path,
-                run_id=self.run_id,
-                artifact_type="trace-screenshot",
-                label=label,
-                file_path=screenshot_path,
-                preview=build_preview(screenshot_output),
-            )
+
+        if command_type == "snapshot":
+            snapshot_text = self._extract_snapshot_text(output)
+            if snapshot_text:
+                snapshot_record = save_text_artifact(
+                    manifest_path=self.manifest_path,
+                    run_id=self.run_id,
+                    artifact_dir=self.snapshots_dir,
+                    artifact_type="trace-snapshot",
+                    label=label,
+                    suffix=".yaml",
+                    content=snapshot_text,
+                    filename=f"{step_slug}.yaml",
+                )
+            else:
+                warnings.append("snapshot missing from playwright output")
+
+        elif command_type == "screenshot":
+            screenshot_path = self._extract_screenshot_path(output)
+            if screenshot_path and Path(screenshot_path).exists():
+                screenshot_record = register_file_artifact(
+                    manifest_path=self.manifest_path,
+                    run_id=self.run_id,
+                    artifact_type="trace-screenshot",
+                    label=label,
+                    file_path=Path(screenshot_path),
+                    preview=build_preview(output),
+                )
+            else:
+                warnings.append("screenshot file not found in playwright output")
+
         else:
-            warnings.append(
-                f"screenshot failed: {screenshot_output.strip() or screenshot_exit_code}"
-            )
+            # Normal action command: save snapshot from output + take extra screenshot
+            snapshot_text = self._extract_snapshot_text(output)
+            if snapshot_text:
+                snapshot_record = save_text_artifact(
+                    manifest_path=self.manifest_path,
+                    run_id=self.run_id,
+                    artifact_dir=self.snapshots_dir,
+                    artifact_type="trace-snapshot",
+                    label=label,
+                    suffix=".yaml",
+                    content=snapshot_text,
+                    filename=f"{step_slug}.yaml",
+                )
+            else:
+                warnings.append("snapshot missing from playwright output")
+
+            if screenshot_command:
+                target_path = self.screenshots_dir / f"{step_slug}.png"
+                sc_exit, sc_output = screenshot_command(target_path)
+                if sc_exit == 0 and target_path.exists():
+                    screenshot_record = register_file_artifact(
+                        manifest_path=self.manifest_path,
+                        run_id=self.run_id,
+                        artifact_type="trace-screenshot",
+                        label=label,
+                        file_path=target_path,
+                        preview=build_preview(sc_output),
+                    )
+                else:
+                    warnings.append(
+                        f"screenshot failed: {sc_output.strip() or sc_exit}"
+                    )
 
         status = "success"
         if exit_code != 0:
@@ -112,7 +151,7 @@ class PlaywrightTraceRecorder:
         elif warnings:
             status = "partial"
 
-        trace_payload = {
+        trace_payload: dict[str, Any] = {
             "step_index": step_index,
             "phase": phase,
             "command": command,
@@ -120,14 +159,16 @@ class PlaywrightTraceRecorder:
             "timestamp": now_iso(),
             "status": status,
             "snapshot_path": snapshot_record.path if snapshot_record else None,
-            "snapshot_inline_summary": self._snapshot_summary(snapshot_text),
-            "snapshot_chars": len(snapshot_text),
+            "snapshot_inline_summary": self._snapshot_summary(
+                self._extract_snapshot_text(output)
+            ),
+            "snapshot_chars": len(self._extract_snapshot_text(output)),
             "screenshot_path": screenshot_record.path if screenshot_record else None,
             "stdout_path": stdout_record.path,
             "stderr_path": None,
             "warnings": warnings,
         }
-        trace_record = save_json_artifact(
+        save_json_artifact(
             manifest_path=self.manifest_path,
             run_id=self.run_id,
             artifact_dir=self.traces_dir,
@@ -172,6 +213,13 @@ class PlaywrightTraceRecorder:
                 break
             snapshot_lines.append(line)
         return "\n".join(snapshot_lines).strip()
+
+    def _extract_screenshot_path(self, output: str) -> str | None:
+        for line in output.splitlines():
+            match = re.search(r"saved to\s+(.+\.png)", line, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return None
 
     def _snapshot_summary(self, snapshot_text: str) -> str:
         if not snapshot_text:
