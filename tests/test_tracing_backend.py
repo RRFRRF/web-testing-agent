@@ -29,7 +29,8 @@ def test_traces_matching_playwright_commands_returns_only_summary(tmp_path):
     )
 
     response = backend.execute("playwright-cli click e3")
-    assert response.output == "trace saved"
+    assert "### Snapshot\nbutton" in response.output
+    assert "[trace saved]" in response.output
     assert recorded[0]["command_type"] == "click"
     assert recorded[0]["is_read_command"] is False
     assert recorded[0]["screenshot_command"] is not None
@@ -104,7 +105,8 @@ def test_traces_full_path_playwright_commands(tmp_path):
     )
 
     response = backend.execute(r"C:\nvm4w\nodejs\playwright-cli.CMD open https://example.com")
-    assert response.output == "trace saved"
+    assert "### Snapshot\nbutton" in response.output
+    assert "[trace saved]" in response.output
     assert recorded[0]["command_type"] == "open"
 
 
@@ -122,7 +124,8 @@ def test_snapshot_command_traced_without_extra_screenshot(tmp_path):
     )
 
     response = backend.execute("playwright-cli snapshot")
-    assert response.output == "trace saved"
+    assert "### Snapshot\nbutton" in response.output
+    assert "[trace saved]" in response.output
     assert recorded[0]["command_type"] == "snapshot"
     assert recorded[0]["is_read_command"] is True
     assert recorded[0]["screenshot_command"] is None
@@ -142,7 +145,8 @@ def test_screenshot_command_traced_without_extra_screenshot(tmp_path):
     )
 
     response = backend.execute("playwright-cli screenshot --filename=out.png")
-    assert response.output == "trace saved"
+    assert "### Snapshot\nbutton" in response.output
+    assert "[trace saved]" in response.output
     assert recorded[0]["command_type"] == "screenshot"
     assert recorded[0]["is_read_command"] is True
     assert recorded[0]["screenshot_command"] is None

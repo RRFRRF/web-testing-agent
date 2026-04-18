@@ -37,8 +37,9 @@ class TracingShellBackend:
                 screenshot_command=screenshot_command,
                 is_read_command=decision.is_read_command,
             )
+            annotated = f"{response.output.rstrip()}\n\n[{result.summary}]"
             return type(response)(
-                output=result.summary,
+                output=annotated,
                 exit_code=response.exit_code,
                 truncated=response.truncated,
             )
