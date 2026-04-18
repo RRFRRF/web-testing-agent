@@ -3,28 +3,50 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>单次运行工作台</title>
+    <title>WebTestAgent Studio</title>
     <style>
       :root {
-        color-scheme: light;
-        --bg: #f4f1eb;
-        --paper: #fffdf9;
-        --paper-strong: #ffffff;
-        --ink: #1f2522;
-        --muted: #6f776f;
-        --line: #d8d2c7;
-        --soft-line: #ebe5da;
-        --accent: #235c4b;
-        --accent-soft: #e2efe9;
-        --warn: #9a6b2f;
-        --warn-soft: #f7ecda;
-        --danger: #a33f2f;
-        --danger-soft: #f9e6e1;
-        --ok: #25624a;
-        --ok-soft: #e4f0ea;
-        --shadow: 0 14px 40px rgba(39, 35, 29, 0.08);
-        --radius: 18px;
+        color-scheme: dark;
+        --bg-main: #041c1c;
+        --bg-deep: #061f1f;
+        --bg-surface: rgba(255, 255, 255, 0.04);
+        --bg-surface-strong: rgba(255, 255, 255, 0.06);
+        --bg-surface-muted: rgba(255, 255, 255, 0.03);
+        --border-grid: rgba(255, 230, 203, 0.28);
+        --border-strong: rgba(255, 230, 203, 0.15);
+        --text-title: #f4efe6;
+        --text-body: #a0aba5;
+        --text-muted: #7f8b84;
+        --accent-gold: #d4b872;
+        --accent-gold-strong: #e5c07b;
+        --accent-gold-soft: rgba(255, 215, 0, 0.08);
+        --ok: #7fb08e;
+        --ok-soft: rgba(127, 176, 142, 0.12);
+        --warn: #d4b872;
+        --warn-soft: rgba(255, 215, 0, 0.08);
+        --danger: #c97c6c;
+        --danger-soft: rgba(201, 124, 108, 0.12);
+        --bg: var(--bg-main);
+        --bg-accent: rgba(255, 255, 255, 0.04);
+        --surface: var(--bg-surface);
+        --surface-strong: var(--bg-surface-strong);
+        --surface-muted: var(--bg-surface-muted);
+        --ink: var(--text-title);
+        --muted: var(--text-body);
+        --line: var(--border-grid);
+        --line-strong: var(--border-strong);
+        --accent: var(--accent-gold);
+        --accent-soft: var(--accent-gold-soft);
+        --accent-strong: var(--accent-gold-strong);
+        --shadow-lg: 0 0 0 transparent;
+        --shadow-md: 0 0 0 transparent;
+        --shadow-sm: 0 0 0 transparent;
+        --radius-xl: 2px;
+        --radius-lg: 2px;
+        --radius-md: 2px;
+        --radius-pill: 3px;
       }
+
 
       * {
         box-sizing: border-box;
@@ -37,293 +59,135 @@
       }
 
       body {
-        font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-family: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
         color: var(--ink);
-        background:
-          radial-gradient(circle at top left, rgba(35, 92, 75, 0.08), transparent 28%),
-          radial-gradient(circle at right 20%, rgba(154, 107, 47, 0.08), transparent 24%),
-          var(--bg);
+        background-color: var(--bg-main);
       }
 
-      .shell {
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background-image:
+          linear-gradient(var(--border-grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border-grid) 1px, transparent 1px);
+        background-size: 72px 72px;
+        opacity: 0.34;
+        -webkit-mask-image: radial-gradient(circle at center, #000, transparent 78%);
+        mask-image: radial-gradient(circle at center, #000, transparent 78%);
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible,
+      summary:focus-visible,
+      .tab-button:focus-visible,
+      .link-button:focus-visible,
+      .artifact-link:focus-visible {
+        outline: 2px solid var(--accent-gold-strong);
+        outline-offset: 2px;
+      }
+
+      .app-shell {
         min-height: 100vh;
-        padding: 24px;
+        padding: 15px;
       }
 
-      .topbar {
-        display: flex;
-        align-items: end;
-        justify-content: space-between;
+      .app-header {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .studio-header-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.78fr);
         gap: 16px;
-        margin-bottom: 18px;
+        padding: 18px 22px;
+        background: rgba(4, 28, 28, 0.9);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 2px solid var(--border-strong);
+        border-radius: var(--radius-md);
+      }
+
+      .brand-block {
+        min-width: 0;
       }
 
       .eyebrow {
-        margin: 0 0 8px;
-        font-size: 12px;
+        margin: 0 0 6px;
+        font-size: 11px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--muted);
+        color: var(--accent-strong);
+        font-weight: 700;
       }
 
       h1 {
         margin: 0;
-        font-family: "Georgia", "Times New Roman", serif;
-        font-size: clamp(28px, 4vw, 40px);
-        line-height: 1.05;
-        font-weight: 700;
+        font-family: "Playfair Display", "Noto Serif SC", Georgia, "Times New Roman", serif;
+        font-size: clamp(26px, 3.6vw, 36px);
+        line-height: 1.02;
+        letter-spacing: -0.02em;
+        color: var(--text-title);
       }
 
       .subtitle {
-        margin: 10px 0 0;
-        color: var(--muted);
-        font-size: 14px;
-        max-width: 720px;
-        line-height: 1.6;
-      }
-
-      .updated-at {
-        color: var(--muted);
-        font-size: 12px;
-        white-space: nowrap;
-      }
-
-      .layout {
-        display: grid;
-        grid-template-columns: 320px minmax(420px, 1fr) 360px;
-        gap: 18px;
-        align-items: start;
-      }
-
-      .panel {
-        background: var(--paper);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        overflow: hidden;
-      }
-
-      .panel-head {
-        padding: 18px 20px 14px;
-        border-bottom: 1px solid var(--soft-line);
-      }
-
-      .panel-head h2,
-      .panel-head h3 {
-        margin: 0;
-        font-size: 16px;
-      }
-
-      .panel-head p {
-        margin: 6px 0 0;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.5;
-      }
-
-      .panel-body {
-        padding: 18px 20px 20px;
-      }
-
-      .stack {
-        display: grid;
-        gap: 16px;
-      }
-
-      fieldset {
-        margin: 0;
-        padding: 0;
-        border: 0;
-        min-width: 0;
-        display: grid;
-        gap: 16px;
-      }
-
-      fieldset:disabled {
-        opacity: 0.6;
-      }
-
-      label {
-        display: block;
-        margin-bottom: 8px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        color: var(--muted);
-        text-transform: uppercase;
-      }
-
-      input,
-      textarea,
-      button {
-        width: 100%;
-        font: inherit;
-      }
-
-      input,
-      textarea {
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        background: var(--paper-strong);
-        color: var(--ink);
-        padding: 12px 14px;
-        outline: none;
-        transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-      }
-
-      input:focus,
-      textarea:focus {
-        border-color: rgba(35, 92, 75, 0.5);
-        box-shadow: 0 0 0 4px rgba(35, 92, 75, 0.08);
-      }
-
-      textarea {
-        min-height: 280px;
-        resize: vertical;
-        line-height: 1.65;
-      }
-
-      .input-note {
-        margin-top: 8px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.5;
-      }
-
-      details {
-        border: 1px solid var(--soft-line);
-        border-radius: 14px;
-        background: #fcfaf5;
-      }
-
-      summary {
-        cursor: pointer;
-        list-style: none;
-        padding: 12px 14px;
-        font-size: 13px;
-        font-weight: 700;
-      }
-
-      summary::-webkit-details-marker {
-        display: none;
-      }
-
-      .details-body {
-        padding: 0 14px 14px;
-        display: grid;
-        gap: 14px;
-      }
-
-      .checks {
-        display: grid;
-        gap: 10px;
-      }
-
-      .check {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 14px;
-        color: var(--ink);
-      }
-
-      .check input {
-        width: 16px;
-        height: 16px;
-        margin: 0;
-      }
-
-      .actions {
-        display: grid;
-        grid-template-columns: 1fr 112px;
-        gap: 10px;
-      }
-
-      button {
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        padding: 12px 16px;
-        cursor: pointer;
-        transition: transform 0.14s ease, background 0.16s ease, opacity 0.16s ease;
-      }
-
-      button:hover {
-        transform: translateY(-1px);
-      }
-
-      button:disabled {
-        cursor: not-allowed;
-        transform: none;
-        opacity: 0.7;
-      }
-
-      .primary {
-        background: var(--accent);
-        color: #f7f3eb;
-        border-color: var(--accent);
-        font-weight: 700;
-      }
-
-      .secondary {
-        background: transparent;
-        color: var(--ink);
-      }
-
-      .banner {
-        border-radius: 14px;
-        padding: 12px 14px;
+        margin: 8px 0 0;
+        max-width: 680px;
         font-size: 13px;
         line-height: 1.6;
-        border: 1px solid var(--soft-line);
-        background: #fbf8f2;
-        color: var(--ink);
+        color: var(--muted);
       }
 
-      .banner.info {
-        background: #f8f5ee;
-      }
-
-      .banner.success {
-        background: var(--ok-soft);
-        border-color: #cfe0d8;
-      }
-
-      .banner.error {
-        background: var(--danger-soft);
-        border-color: #edc7bd;
-      }
-
-      .status-grid {
+      .status-strip {
         display: grid;
-        gap: 16px;
+        align-content: space-between;
+        gap: 10px;
+        padding: 14px 16px;
+        background: rgba(4, 28, 28, 0.9);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 2px solid var(--border-strong);
+        border-radius: var(--radius-md);
       }
 
-      .status-card,
-      .report-card {
-        border: 1px solid var(--soft-line);
-        border-radius: 16px;
-        padding: 16px;
-        background: #fdfbf7;
-      }
-
-      .status-row {
+      .status-strip-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: 10px;
         flex-wrap: wrap;
+      }
+
+      .status-strip-title {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-gold);
+        font-weight: 700;
       }
 
       .status-pill {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        padding: 7px 12px;
-        border-radius: 999px;
-        font-size: 12px;
+        padding: 7px 11px;
+        border-radius: var(--radius-pill);
+        font-size: 11px;
         font-weight: 700;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        border: 2px solid transparent;
       }
 
       .status-pill::before {
@@ -334,73 +198,418 @@
         background: currentColor;
       }
 
-      .status-idle {
-        background: #f0ece3;
-        color: #7a6852;
-      }
-
-      .status-running {
-        background: var(--accent-soft);
-        color: var(--accent);
-      }
-
-      .status-completed {
-        background: var(--ok-soft);
-        color: var(--ok);
-      }
-
-      .status-failed {
-        background: var(--danger-soft);
-        color: var(--danger);
-      }
-
-      .status-text {
-        width: 100%;
-        font-size: 14px;
-        line-height: 1.6;
-      }
-
-      .status-meta {
+      .status-strip-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        margin-top: 14px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
       }
 
-      .meta-item {
-        border-top: 1px solid var(--soft-line);
-        padding-top: 10px;
+      .status-metric {
         min-width: 0;
+        padding: 10px 12px;
+        background: var(--surface-muted);
+        border: 2px solid var(--line);
+        border-radius: var(--radius-md);
       }
 
-      .meta-item span {
+      .status-metric span {
         display: block;
-        font-size: 11px;
+        margin-bottom: 4px;
+        font-size: 10px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--muted);
-        margin-bottom: 5px;
       }
 
-      .meta-item strong {
+      .status-metric strong {
         display: block;
-        font-size: 13px;
-        line-height: 1.5;
+        font-size: 12px;
+        line-height: 1.45;
         word-break: break-word;
       }
 
-      .image-panel {
+      .tabs-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        background: rgba(4, 28, 28, 0.9);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 2px solid var(--border-strong);
+        border-radius: var(--radius-md);
+      }
+
+      .tabs-hint {
+        color: var(--accent-gold);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .tab-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px;
+        background: var(--bg-accent);
+        border-radius: var(--radius-pill);
+        border: 2px solid var(--border-strong);
+      }
+
+      .tab-button {
+        appearance: none;
+        border: 0;
+        border-radius: var(--radius-pill);
+        padding: 9px 15px;
+        min-width: 110px;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+      }
+
+
+      .tab-button:hover:not([aria-disabled="true"]) {
+        color: var(--accent-strong);
+        transform: translateY(-1px);
+      }
+
+      .tab-button.is-active {
+        background: var(--surface-strong);
+        color: var(--accent-strong);
+        box-shadow: none;
+      }
+
+      .tab-button[aria-disabled="true"] {
+        cursor: not-allowed;
+        color: var(--text-muted);
+        background: transparent;
+      }
+
+      .app-main {
         display: grid;
-        gap: 14px;
+      }
+
+      .app-view {
+        display: none;
+      }
+
+      .app-view.is-active {
+        display: block;
+      }
+
+      .view-stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 2px solid var(--border-strong);
+        border-radius: var(--radius-md);
+        box-shadow: none;
+        overflow: hidden;
+      }
+
+      .panel-head {
+        padding: 15px 18px 12px;
+        border-bottom: 2px solid var(--line);
+      }
+
+      .panel-head h2,
+      .panel-head h3 {
+        margin: 0;
+        font-size: 17px;
+        color: var(--accent-gold);
+      }
+
+      .panel-head p {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .panel-body {
+        padding: 15px 18px 18px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 16px;
+      }
+
+      .dashboard-composer {
+        position: relative;
+      }
+
+      .dashboard-composer .panel-head {
+        display: grid;
+        gap: 10px;
+      }
+
+      .dashboard-composer-summary {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 2px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--surface-muted);
+      }
+
+      .dashboard-composer-summary strong {
+        font-size: 13px;
+      }
+
+      .dashboard-composer-summary span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .dashboard-composer-toggle {
+        width: auto;
+        min-width: 132px;
+        padding: 9px 12px;
+        font-size: 12px;
+      }
+
+      .dashboard-composer.is-collapsed .panel-head p,
+      .dashboard-composer.is-collapsed .panel-body {
+        display: none;
+      }
+
+      .dashboard-composer.is-collapsed .dashboard-composer-summary {
+        display: flex;
+      }
+
+      .dashboard-composer .panel-body {
+        display: grid;
+        gap: 10px;
+      }
+
+      .composer-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.55fr) 260px;
+        gap: 10px 14px;
+        align-items: start;
+      }
+
+      .composer-field {
+        min-width: 0;
+      }
+
+      .scenario-field {
+        grid-column: 1;
+      }
+
+      .field-actions.actions {
+        grid-template-columns: 1fr 110px;
+        align-self: end;
+      }
+
+      fieldset {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        min-width: 0;
+      }
+
+      fieldset:disabled {
+        opacity: 0.7;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border: 2px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--surface-strong);
+        color: var(--ink);
+        padding: 10px 12px;
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+      }
+
+      input:focus,
+      textarea:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px var(--accent-gold-soft);
+      }
+
+      textarea {
+        min-height: 96px;
+        resize: vertical;
+        line-height: 1.65;
+      }
+
+      .input-note {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      details {
+        border: 2px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--surface-muted);
+      }
+
+      summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 9px 12px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .details-body {
+        padding: 0 12px 12px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .checks {
+        display: grid;
+        gap: 8px;
+      }
+
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+      }
+
+      .check input {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 120px;
+        gap: 10px;
+      }
+
+      button {
+        width: 100%;
+        border: 2px solid var(--line);
+        border-radius: var(--radius-pill);
+        padding: 12px 16px;
+        cursor: pointer;
+        transition: transform 0.14s ease, opacity 0.14s ease, background 0.16s ease, border-color 0.16s ease;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.72;
+        transform: none;
+      }
+
+      .primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--bg-main);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      .primary:hover:not(:disabled) {
+        background: var(--accent-strong);
+        border-color: var(--accent-strong);
+      }
+
+      .secondary {
+        background: var(--surface-strong);
+        color: var(--ink);
+      }
+
+      .banner,
+      .state-banner {
+        border-radius: var(--radius-md);
+        padding: 11px 14px;
+        font-size: 13px;
+        line-height: 1.55;
+        border: 2px solid var(--line);
+        background: var(--surface-muted);
+      }
+
+      .banner.info,
+      .state-banner.info {
+        background: var(--surface-strong);
+        border-color: var(--line);
+      }
+
+      .banner.success,
+      .state-banner.success {
+        background: var(--ok-soft);
+        border-color: var(--ok);
+      }
+
+      .banner.warning,
+      .state-banner.warning {
+        background: var(--warn-soft);
+        border-color: var(--warn);
+      }
+
+      .banner.error,
+      .state-banner.error {
+        background: var(--danger-soft);
+        border-color: var(--danger);
+      }
+
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.95fr) minmax(320px, 0.95fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .dashboard-side-stack {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 16px;
+        min-height: 0;
+      }
+
+      .image-panel,
+      .overview-stack,
+      .report-layout,
+      .scripts-layout {
+        display: grid;
+        gap: 16px;
       }
 
       .image-stage {
         position: relative;
-        min-height: 520px;
-        border-radius: 20px;
-        border: 1px solid var(--soft-line);
-        background:
-          linear-gradient(180deg, rgba(244, 241, 235, 0.8), rgba(255, 255, 255, 0.98));
+        min-height: 540px;
+        border-radius: var(--radius-md);
+        border: 2px solid var(--border-strong);
+        background: var(--surface-muted);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -409,35 +618,40 @@
 
       .image-stage img {
         display: block;
-        max-width: calc(100% - 28px);
-        max-height: 72vh;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        box-shadow: 0 16px 36px rgba(32, 29, 24, 0.12);
-        background: #fff;
+        max-width: calc(100% - 24px);
+        max-height: 76vh;
+        border-radius: var(--radius-md);
+        border: 2px solid var(--line);
+        background: var(--bg-deep);
       }
 
-      .empty-state {
-        max-width: 360px;
-        padding: 24px;
+      .empty-state,
+      .locked-state {
+        max-width: 420px;
+        padding: 28px;
         text-align: center;
       }
 
-      .empty-state strong {
+      .empty-state strong,
+      .locked-state strong {
         display: block;
         margin-bottom: 8px;
-        font-size: 18px;
-        font-family: "Georgia", "Times New Roman", serif;
+        font-family: "Playfair Display", "Noto Serif SC", Georgia, serif;
+        font-size: 20px;
       }
 
-      .empty-state p {
+      .empty-state p,
+      .locked-state p {
         margin: 0;
         color: var(--muted);
         font-size: 14px;
-        line-height: 1.7;
+        line-height: 1.75;
       }
 
-      .image-foot {
+      .image-foot,
+      .toolbar,
+      .resource-links,
+      .artifact-links {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -445,57 +659,186 @@
         flex-wrap: wrap;
       }
 
-      .image-note {
+      .image-note,
+      .helper-text {
         color: var(--muted);
         font-size: 12px;
+        line-height: 1.55;
       }
 
-      .link-button {
+      .link-button,
+      .artifact-link {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 112px;
+        gap: 8px;
+        min-width: 124px;
         padding: 10px 14px;
-        border-radius: 999px;
-        border: 1px solid var(--line);
+        border-radius: var(--radius-pill);
+        border: 2px solid var(--line);
         color: var(--ink);
+        background: var(--surface-strong);
         text-decoration: none;
-        background: #fff;
       }
 
       .link-button[hidden] {
         display: none;
       }
 
-      .right-column {
-        display: grid;
-        gap: 18px;
+      .artifact-link.is-disabled {
+        pointer-events: none;
+        opacity: 0.55;
       }
 
       .log-list {
         display: grid;
         gap: 12px;
-        max-height: 460px;
+        max-height: 640px;
+        min-height: 480px;
         overflow: auto;
         padding-right: 2px;
       }
 
       .log-empty,
-      .report-empty {
-        border: 1px dashed var(--line);
-        border-radius: 14px;
+      .report-empty,
+      .resource-empty {
+        border: 2px dashed var(--line);
+        border-radius: var(--radius-md);
         padding: 18px;
         color: var(--muted);
+        background: var(--surface-muted);
         font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .log-item,
+      .status-card,
+      .summary-card,
+      .report-card,
+      .code-card {
+        border: 2px solid var(--border-strong);
+        border-radius: var(--radius-md);
+        padding: 16px;
+        background: var(--surface);
+      }
+
+      .overview-panel .panel-head p {
+        max-width: 320px;
+      }
+
+      .overview-panel .panel-body {
+        padding: 12px 14px 14px;
+      }
+
+      .overview-compact {
+        display: grid;
+        gap: 10px;
+      }
+
+      .overview-compact .status-card {
+        padding: 13px;
+      }
+
+      .overview-compact .status-text {
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .overview-compact .status-meta {
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .overview-compact .meta-item {
+        padding-top: 7px;
+      }
+
+      .overview-compact .badge-row {
+        gap: 8px;
+      }
+
+      .overview-compact .summary-badge {
+        padding: 7px 10px;
+        font-size: 11px;
+      }
+
+      .status-row,
+      .summary-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .status-text,
+      .summary-text {
+        width: 100%;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .status-meta,
+      .summary-meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .meta-item {
+        min-width: 0;
+        border-top: 2px solid var(--line);
+        padding-top: 10px;
+      }
+
+      .meta-item span {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .meta-item strong {
+        display: block;
+        font-size: 13px;
         line-height: 1.6;
-        background: #fcfaf5;
+        word-break: break-word;
+      }
+
+      .badge-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .summary-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        border-radius: var(--radius-pill);
+        border: 2px solid var(--line);
+        background: var(--surface-muted);
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--muted);
+      }
+
+      .summary-badge.is-available {
+        color: var(--ok);
+        border-color: var(--ok);
+        background: var(--ok-soft);
+      }
+
+      .summary-badge.is-unavailable {
+        color: var(--text-muted);
       }
 
       .log-item {
-        border: 1px solid var(--soft-line);
-        border-radius: 14px;
-        padding: 14px;
-        background: #fff;
+        background: var(--surface-strong);
       }
 
       .log-top {
@@ -509,22 +852,28 @@
       .log-kind {
         font-size: 12px;
         font-weight: 700;
-        color: var(--accent);
+        color: var(--accent-strong);
         letter-spacing: 0.04em;
         text-transform: uppercase;
       }
 
-      .log-time {
+      .log-time,
+      .report-meta {
         color: var(--muted);
         font-size: 11px;
       }
 
-      .log-summary {
+      .log-summary,
+      .report-body,
+      .code-block {
         margin: 0;
-        font-size: 13px;
-        line-height: 1.65;
         white-space: pre-wrap;
         word-break: break-word;
+        line-height: 1.72;
+      }
+
+      .log-summary {
+        font-size: 13px;
       }
 
       .log-meta {
@@ -534,155 +883,356 @@
       }
 
       .report-body {
-        margin: 0;
         font-size: 13px;
-        line-height: 1.7;
-        white-space: pre-wrap;
-        word-break: break-word;
       }
 
-      @media (max-width: 1220px) {
-        .layout {
+      .scripts-layout {
+        grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.72fr);
+        align-items: start;
+      }
+
+      .code-card {
+        overflow: hidden;
+      }
+
+      .code-card pre {
+        margin: 0;
+        max-height: 560px;
+        overflow: auto;
+        padding: 18px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 230, 203, 0.06);
+      }
+
+      .code-block {
+        color: var(--text-title);
+        font-family: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
+        font-size: 13px;
+      }
+
+      .resource-links,
+      .artifact-links {
+        display: grid;
+        gap: 10px;
+      }
+
+      .artifact-link {
+        justify-content: space-between;
+      }
+
+      .artifact-link small {
+        color: var(--muted);
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      @media (max-width: 1240px) {
+        .studio-header-card,
+        .dashboard-grid,
+        .dashboard-side-stack,
+        .scripts-layout,
+        .composer-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .status-strip-grid,
+        .status-meta,
+        .summary-meta {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 860px) {
+        .app-shell {
+          padding: 16px;
+        }
+
+        .tabs-card {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .tab-nav {
+          width: 100%;
+          justify-content: stretch;
+        }
+
+        .tab-button {
+          min-width: 0;
+          flex: 1 1 0;
+        }
+
+        .actions {
           grid-template-columns: 1fr;
         }
 
         .image-stage {
-          min-height: 360px;
-        }
-
-        .log-list {
-          max-height: none;
+          min-height: 340px;
         }
       }
     </style>
   </head>
   <body>
-    <div class="shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Browser Tools Single Run Demo</p>
-          <h1>单次运行工作台</h1>
-          <p class="subtitle">左侧配置一次运行，中间查看当前截图与状态，右侧集中查看日志和最终报告。页面只依赖当前 run 的状态接口，不保留旧 dashboard 的多运行浏览逻辑。</p>
-        </div>
-        <div id="updatedAt" class="updated-at">尚未同步状态</div>
+    <div class="app-shell">
+      <header class="app-header">
+        <section class="studio-header-card">
+          <div class="brand-block">
+            <p class="eyebrow">Web Studio / Browser Tools Single Run Demo</p>
+            <h1>运行工作台</h1>
+            <p class="subtitle">Web Studio 将 Dashboard、Scripts 和 Reports 放进同一个单页壳层。Dashboard 负责执行体验，Scripts 与 Reports 负责完成后的交付浏览，页面仍然只依赖当前 run 的状态接口。</p>
+          </div>
+          <aside class="status-strip">
+            <div class="status-strip-head">
+              <span class="status-strip-title">Run Snapshot</span>
+              <div id="statusPill" class="status-pill status-idle">idle</div>
+            </div>
+            <div class="status-strip-grid">
+              <div class="status-metric">
+                <span>Run ID</span>
+                <strong id="runIdText">-</strong>
+              </div>
+              <div class="status-metric">
+                <span>目标 URL</span>
+                <strong id="runUrlText">-</strong>
+              </div>
+              <div class="status-metric">
+                <span id="updatedAtLabel">最近同步</span>
+                <strong id="updatedAt">尚未同步状态</strong>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section class="tabs-card">
+          <div class="tabs-hint">Dashboard 始终可访问，Scripts 与 Reports 会根据当前 run 状态自动锁定或解锁。</div>
+          <nav id="tabNav" class="tab-nav" aria-label="Studio views">
+            <button id="tabDashboard" class="tab-button is-active" type="button" data-view-target="dashboard">Dashboard</button>
+            <button id="tabScripts" class="tab-button" type="button" data-view-target="scripts">Scripts</button>
+            <button id="tabReports" class="tab-button" type="button" data-view-target="reports">Reports</button>
+          </nav>
+        </section>
       </header>
 
-      <main class="layout">
-        <section class="panel">
-          <div class="panel-head">
-            <h2>运行输入</h2>
-            <p>支持 URL、自然语言 scenario，以及可选的 session 持久化参数。</p>
-          </div>
-          <div class="panel-body stack">
-            <div id="banner" class="banner info">请先填写参数并开始运行。URL 留空时，将由后端使用默认值。</div>
-
-            <fieldset id="formFields">
-              <div>
-                <label for="urlInput">URL</label>
-                <input id="urlInput" type="url" placeholder="https://example.com" autocomplete="off" />
-                <div class="input-note">如果留空，后端会自动使用默认 URL。</div>
-              </div>
-
-              <div>
-                <label for="scenarioInput">Scenario</label>
-                <textarea id="scenarioInput" placeholder="请输入测试场景。可以是自然语言，也可以是 JSON steps。"></textarea>
-                <div class="input-note">running 时表单会整体禁用，避免修改中的内容与当前运行状态混淆。</div>
-              </div>
-
-              <details>
-                <summary>Session 持久化（可选）</summary>
-                <div class="details-body">
-                  <div class="checks">
-                    <label class="check"><input id="autoLoadInput" type="checkbox" /> 自动导入登录态</label>
-                    <label class="check"><input id="autoSaveInput" type="checkbox" /> 自动保存登录态</label>
-                  </div>
+      <main class="app-main">
+        <section id="viewDashboard" class="app-view is-active" data-view="dashboard">
+          <div class="view-stack">
+            <section id="dashboardComposer" class="panel dashboard-composer">
+              <div class="panel-head">
+                <div class="status-row">
                   <div>
-                    <label for="accountIdInput">账号标识</label>
-                    <input id="accountIdInput" type="text" placeholder="例如 alice" autocomplete="off" />
+                    <h2>Dashboard</h2>
+                    <p>在这里启动和观察一次 run。idle、preparing、running、completed、failed 五态都会优先回到这个视图呈现。</p>
+                  </div>
+                  <button
+                    id="toggleDashboardComposerBtn"
+                    class="secondary dashboard-composer-toggle"
+                    type="button"
+                    aria-controls="dashboardComposerBody"
+                    aria-expanded="true"
+                  >
+                    收起顶部配置
+                  </button>
+                </div>
+                <div id="dashboardComposerSummary" class="dashboard-composer-summary" aria-live="polite">
+                  <div>
+                    <strong>Dashboard</strong>
+                    <span id="dashboardSummaryText">当前聚焦运行工作区。</span>
+                  </div>
+                  <div id="dashboardSummaryStatus" class="status-pill status-idle">idle</div>
+                </div>
+              </div>
+              <div id="dashboardComposerBody" class="panel-body">
+                <div id="banner" class="banner info">请先填写参数并开始运行。URL 留空时，将由后端使用默认值。</div>
+                <fieldset id="formFields" class="composer-grid">
+                  <div class="composer-field url-field">
+                    <label for="urlInput">URL</label>
+                    <input id="urlInput" type="url" placeholder="https://example.com" autocomplete="off" />
+                    <div class="input-note">如果留空，后端会自动使用默认 URL。</div>
+                  </div>
+
+                  <div class="composer-field session-field">
+                    <details>
+                      <summary>Session 持久化（可选）</summary>
+                      <div class="details-body">
+                        <div class="checks">
+                          <label class="check"><input id="autoLoadInput" type="checkbox" /> 自动导入登录态</label>
+                          <label class="check"><input id="autoSaveInput" type="checkbox" /> 自动保存登录态</label>
+                        </div>
+                        <div>
+                          <label for="accountIdInput">账号标识</label>
+                          <input id="accountIdInput" type="text" placeholder="例如 alice" autocomplete="off" />
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+
+                  <div class="composer-field scenario-field">
+                    <label for="scenarioInput">Scenario</label>
+                    <textarea id="scenarioInput" placeholder="请输入测试场景。可以是自然语言，也可以是 JSON steps。"></textarea>
+                    <div class="input-note">running 时表单会整体禁用，避免修改中的内容与当前运行状态混淆。</div>
+                  </div>
+
+                  <div class="field-actions actions">
+                    <button id="startBtn" class="primary" type="button">开始运行</button>
+                    <button id="resetBtn" class="secondary" type="button">重置</button>
+                  </div>
+                </fieldset>
+              </div>
+
+            </section>
+
+            <div class="dashboard-grid">
+              <section class="panel">
+                <div class="panel-head">
+                  <h3>实时预览</h3>
+                  <p>持续显示当前 screenshot、run 状态，以及原图查看入口。</p>
+                </div>
+                <div class="panel-body image-panel">
+                  <div id="screenshotStage" class="image-stage">
+                    <div class="empty-state">
+                      <strong>尚未开始运行</strong>
+                      <p>运行后会在这里显示最新截图。</p>
+                    </div>
+                  </div>
+                  <div class="image-foot">
+                    <div id="imageNote" class="image-note">当前没有可查看的原图。</div>
+                    <a id="openImageLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>查看原图</a>
                   </div>
                 </div>
-              </details>
-            </fieldset>
+              </section>
 
-            <div class="actions">
-              <button id="startBtn" class="primary" type="button">开始运行</button>
-              <button id="resetBtn" class="secondary" type="button">重置</button>
+              <div class="dashboard-side-stack">
+                <section class="panel">
+                  <div class="panel-head">
+                    <h3>日志</h3>
+                    <p>按当前状态接口返回的日志顺序展示本次单 run 过程。</p>
+                  </div>
+                  <div class="panel-body">
+                    <div id="logList" class="log-list">
+                      <div class="log-empty">当前还没有日志输出。</div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="panel overview-panel">
+                  <div class="panel-head">
+                    <h3>执行概览</h3>
+                    <p>保留状态、manifest、错误与产物摘要，不和日志争夺主空间。</p>
+                  </div>
+                  <div class="panel-body overview-stack">
+                    <div class="overview-compact">
+                      <div class="status-card">
+                        <div class="status-row">
+                          <div id="statusText" class="status-text">尚未开始运行。</div>
+                        </div>
+                        <div class="status-meta">
+                          <div class="meta-item">
+                            <span>Manifest</span>
+                            <strong id="manifestText">-</strong>
+                          </div>
+                          <div class="meta-item">
+                            <span>错误</span>
+                            <strong id="errorText">-</strong>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="summary-card">
+                        <div class="badge-row">
+                          <div id="summaryScriptBadge" class="summary-badge is-unavailable">脚本未生成</div>
+                          <div id="summaryReportBadge" class="summary-badge is-unavailable">报告未生成</div>
+                          <div id="summaryScreenshotBadge" class="summary-badge is-unavailable">截图未生成</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
             </div>
+
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <h2>当前运行</h2>
-            <p>持续显示当前 screenshot、run 状态，以及原图查看入口。</p>
-          </div>
-          <div class="panel-body image-panel">
-            <div class="status-card">
-              <div class="status-row">
-                <div id="statusPill" class="status-pill status-idle">idle</div>
-                <div id="statusText" class="status-text">尚未开始运行。</div>
+        <section id="viewScripts" class="app-view" data-view="scripts">
+          <div class="view-stack">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Scripts</h2>
+                <p>代码交付页。完成后展示 `test.spec.ts`、运行摘要和关键产物链接；未完成时保持锁定态。</p>
               </div>
-              <div class="status-meta">
-                <div class="meta-item">
-                  <span>Run ID</span>
-                  <strong id="runIdText">-</strong>
+              <div class="panel-body view-stack">
+                <div id="scriptsSummary" class="summary-card"></div>
+                <div id="scriptsStateBanner" class="state-banner info">脚本资源会在首次进入该视图时按需加载。</div>
+                <div class="toolbar">
+                  <button id="copyScriptBtn" class="secondary" type="button">复制代码</button>
+                  <a id="openScriptLink" class="link-button" href="#" target="_blank" rel="noreferrer">打开脚本</a>
+                  <a id="openOutputsLink" class="link-button" href="#" target="_blank" rel="noreferrer">打开 outputs</a>
                 </div>
-                <div class="meta-item">
-                  <span>目标 URL</span>
-                  <strong id="runUrlText">-</strong>
-                </div>
-                <div class="meta-item">
-                  <span>Manifest</span>
-                  <strong id="manifestText">-</strong>
-                </div>
-                <div class="meta-item">
-                  <span>错误</span>
-                  <strong id="errorText">-</strong>
+                <div class="scripts-layout">
+                  <div id="scriptsStatePanel" class="resource-empty">脚本页会在完成后解锁。</div>
+                  <aside class="view-stack">
+                    <div class="panel">
+                      <div class="panel-head">
+                        <h3>关联产物</h3>
+                        <p>这里集中放置脚本、报告、manifest 和最新截图入口。</p>
+                      </div>
+                      <div class="panel-body">
+                        <div id="scriptsLinks" class="resource-links"></div>
+                      </div>
+                    </div>
+                  </aside>
                 </div>
               </div>
-            </div>
-
-            <div id="screenshotStage" class="image-stage">
-              <div class="empty-state">
-                <strong>尚未开始运行</strong>
-                <p>运行后会在这里显示最新截图。</p>
-              </div>
-            </div>
-
-            <div class="image-foot">
-              <div id="imageNote" class="image-note">当前没有可查看的原图。</div>
-              <a id="openImageLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>查看原图</a>
-            </div>
+            </section>
           </div>
         </section>
 
-        <section class="right-column">
-          <section class="panel">
-            <div class="panel-head">
-              <h3>日志</h3>
-              <p>按当前状态接口返回的日志顺序展示本次单 run 过程。</p>
-            </div>
-            <div class="panel-body">
-              <div id="logList" class="log-list">
-                <div class="log-empty">当前还没有日志输出。</div>
+        <section id="viewReports" class="app-view" data-view="reports">
+          <div class="view-stack">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Reports</h2>
+                <p>测试结果交付页。completed 时显示最终报告；failed 时显示失败摘要与可用产物链接。</p>
               </div>
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="panel-head">
-              <h3>最终报告</h3>
-              <p>completed 时显示最终报告；failed 时显示明确错误信息。</p>
-            </div>
-            <div class="panel-body">
-              <div id="reportBox" class="report-empty">最终报告会在运行结束后显示在这里。</div>
-            </div>
-          </section>
+              <div class="panel-body report-layout">
+                <div id="reportsSummary" class="summary-card"></div>
+                <div id="reportsStateBanner" class="state-banner info">报告视图会复用主状态，并在首次进入时按需加载产物摘要。</div>
+                <div class="scripts-layout">
+                  <div id="reportBox" class="report-empty">最终报告会在运行结束后显示在这里。</div>
+                  <aside class="view-stack">
+                    <div class="panel">
+                      <div class="panel-head">
+                        <h3>关键产物</h3>
+                        <p>manifest、report、screenshot 与脚本等入口会集中展示在这里。</p>
+                      </div>
+                      <div class="panel-body">
+                        <div id="reportLinks" class="artifact-links"></div>
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+              </div>
+            </section>
+          </div>
         </section>
       </main>
     </div>
 
     <script>
+      const dashboardComposer = document.getElementById('dashboardComposer');
+      const dashboardComposerSummary = document.getElementById('dashboardComposerSummary');
+      const dashboardSummaryText = document.getElementById('dashboardSummaryText');
+      const dashboardSummaryStatus = document.getElementById('dashboardSummaryStatus');
+      const toggleDashboardComposerBtn = document.getElementById('toggleDashboardComposerBtn');
       const formFields = document.getElementById('formFields');
       const urlInput = document.getElementById('urlInput');
       const scenarioInput = document.getElementById('scenarioInput');
@@ -698,18 +1248,43 @@
       const runUrlText = document.getElementById('runUrlText');
       const manifestText = document.getElementById('manifestText');
       const errorText = document.getElementById('errorText');
+      const updatedAt = document.getElementById('updatedAt');
       const screenshotStage = document.getElementById('screenshotStage');
       const imageNote = document.getElementById('imageNote');
       const openImageLink = document.getElementById('openImageLink');
       const logList = document.getElementById('logList');
+      const summaryScriptBadge = document.getElementById('summaryScriptBadge');
+      const summaryReportBadge = document.getElementById('summaryReportBadge');
+      const summaryScreenshotBadge = document.getElementById('summaryScreenshotBadge');
+      const scriptsSummary = document.getElementById('scriptsSummary');
+      const scriptsStateBanner = document.getElementById('scriptsStateBanner');
+      const scriptsStatePanel = document.getElementById('scriptsStatePanel');
+      const scriptsLinks = document.getElementById('scriptsLinks');
+      const copyScriptBtn = document.getElementById('copyScriptBtn');
+      const openScriptLink = document.getElementById('openScriptLink');
+      const openOutputsLink = document.getElementById('openOutputsLink');
+      const reportsSummary = document.getElementById('reportsSummary');
+      const reportsStateBanner = document.getElementById('reportsStateBanner');
       const reportBox = document.getElementById('reportBox');
-      const updatedAt = document.getElementById('updatedAt');
+      const reportLinks = document.getElementById('reportLinks');
+      const tabDashboard = document.getElementById('tabDashboard');
+      const tabScripts = document.getElementById('tabScripts');
+      const tabReports = document.getElementById('tabReports');
+      const viewDashboard = document.getElementById('viewDashboard');
+      const viewScripts = document.getElementById('viewScripts');
+      const viewReports = document.getElementById('viewReports');
 
       const uiState = {
         pollTimer: null,
         starting: false,
         resetting: false,
         lastScreenshotUrl: null,
+        activeView: 'dashboard',
+        currentState: null,
+        lastRunId: null,
+        dashboardComposerCollapsed: false,
+        scriptResource: { loaded: false, loading: false, error: null, data: null },
+        artifactsResource: { loaded: false, loading: false, error: null, data: null },
       };
 
       function escapeHtml(value) {
@@ -725,17 +1300,134 @@
         return `最近更新：${date.toLocaleString('zh-CN', { hour12: false })}`;
       }
 
-      function getStatusDescription(current) {
-        if (current.status === 'running') {
+      function formatValue(value) {
+        if (!value) return '-';
+        return value;
+      }
+
+      function toPublicArtifactHref(value) {
+        if (!value) return null;
+        const normalized = String(value).replaceAll('\\', '/');
+        if (normalized.startsWith('/outputs/')) return normalized;
+        const outputsIndex = normalized.indexOf('/outputs/');
+        if (outputsIndex >= 0) {
+          return normalized.slice(outputsIndex);
+        }
+        return normalized.startsWith('/') ? normalized : null;
+      }
+
+      function statusClassName(status) {
+        if (status === 'preparing') return 'status-preparing';
+        if (status === 'running') return 'status-running';
+        if (status === 'completed') return 'status-completed';
+        if (status === 'failed') return 'status-failed';
+        return 'status-idle';
+      }
+
+      function getStatusDescription(state) {
+        if (state.status === 'preparing') {
+          return '正在准备运行，Dashboard 会保留为当前唯一可用视图。';
+        }
+        if (state.status === 'running') {
           return '正在执行当前 run，表单已锁定，页面会自动刷新截图与日志。';
         }
-        if (current.status === 'completed') {
-          return current.final_report ? '运行已完成，可以查看最终报告与原图。' : '运行已完成，但还没有最终报告内容。';
+        if (state.status === 'completed') {
+          return state.final_report ? '运行已完成，可以切换到 Scripts 和 Reports 浏览交付内容。' : '运行已完成，但最终报告内容仍为空。';
         }
-        if (current.status === 'failed') {
-          return current.error ? `运行失败：${current.error}` : '运行失败，请查看日志与错误提示。';
+        if (state.status === 'failed') {
+          return state.error ? `运行失败：${state.error}` : '运行失败，请查看日志与错误提示。';
         }
         return '尚未开始运行。';
+      }
+
+      function normalizeState(raw) {
+        const state = {
+          status: 'idle',
+          run_id: null,
+          run_dir: null,
+          manifest_path: null,
+          url: '',
+          scenario_input: '',
+          latest_screenshot: null,
+          logs: [],
+          final_report: null,
+          error: null,
+          updated_at: '',
+          report_path: null,
+          test_script_path: null,
+          has_script: null,
+          has_report: null,
+          ...raw,
+        };
+        return createStateAdapter(state);
+      }
+
+      function createStateAdapter(state) {
+        return {
+          ...state,
+          hasScript: state.has_script ?? Boolean(state.test_script_path),
+          hasReport: state.has_report ?? Boolean(state.report_path || state.final_report),
+          scriptPath: state.test_script_path ?? null,
+          reportPath: state.report_path ?? null,
+          outputPath: state.run_dir ?? null,
+        };
+      }
+
+      function deriveAvailability(state) {
+        const canOpenScripts = state.status === 'completed' || (state.status === 'failed' && state.hasScript);
+        const canOpenReports = state.status === 'completed' || state.status === 'failed';
+        return { canOpenScripts, canOpenReports };
+      }
+
+      function deriveDashboardMode(state) {
+        return state.status;
+      }
+
+      function deriveScriptsMode(state, scriptResource) {
+        const availability = deriveAvailability(state);
+        if (!availability.canOpenScripts) return 'locked';
+        if (scriptResource.loading) return 'loading';
+        if (scriptResource.error) return 'error';
+        if (!state.hasScript) return 'empty';
+        if (state.status === 'failed') return 'failed_ready';
+        return 'ready';
+      }
+
+      function deriveReportsMode(state, artifactsResource) {
+        const availability = deriveAvailability(state);
+        if (!availability.canOpenReports) return 'locked';
+        if (artifactsResource.loading) return 'loading';
+        if (state.status === 'failed') return 'failed_ready';
+        return 'completed_ready';
+      }
+
+      function coerceActiveView(activeView, availability) {
+        if (activeView === 'scripts' && !availability.canOpenScripts) return 'dashboard';
+        if (activeView === 'reports' && !availability.canOpenReports) return 'dashboard';
+        return activeView;
+      }
+
+      function resetResource(resource) {
+        resource.loaded = false;
+        resource.loading = false;
+        resource.error = null;
+        resource.data = null;
+      }
+
+      function invalidateDerivedResourcesIfRunChanged(state) {
+        if (uiState.lastRunId === state.run_id) return;
+        uiState.lastRunId = state.run_id;
+        resetResource(uiState.scriptResource);
+        resetResource(uiState.artifactsResource);
+      }
+
+      function maybeHydrateInputs(state) {
+        if (!uiState.starting && state.url && !urlInput.value) {
+          urlInput.value = state.url;
+        }
+        if (!uiState.starting && state.scenario_input && !scenarioInput.value) {
+          scenarioInput.value = state.scenario_input;
+        }
       }
 
       function setBanner(kind, message) {
@@ -743,13 +1435,13 @@
         banner.textContent = message;
       }
 
-      function syncControls(current) {
-        const isRunning = current.status === 'running';
+      function syncControls(state) {
+        const isRunning = state.status === 'running' || state.status === 'preparing';
         formFields.disabled = isRunning;
         resetBtn.disabled = false;
-        if (uiState.starting) {
+        if (uiState.starting || state.status === 'preparing') {
           startBtn.textContent = '启动中...';
-        } else if (isRunning) {
+        } else if (state.status === 'running') {
           startBtn.textContent = '运行中...';
         } else {
           startBtn.textContent = '开始运行';
@@ -762,39 +1454,71 @@
         }
       }
 
-      function maybeHydrateInputs(current) {
-        if (!uiState.starting && current.url && !urlInput.value) {
-          urlInput.value = current.url;
-        }
-        if (!uiState.starting && current.scenario_input && !scenarioInput.value) {
-          scenarioInput.value = current.scenario_input;
-        }
+      function renderAppChrome(state, availability, activeView) {
+        statusPill.className = `status-pill ${statusClassName(state.status)}`;
+        statusPill.textContent = state.status;
+        runIdText.textContent = formatValue(state.run_id);
+        runUrlText.textContent = formatValue(state.url);
+        updatedAt.textContent = formatTime(state.updated_at);
+
+        const tabConfig = [
+          { button: tabDashboard, view: 'dashboard', enabled: true },
+          { button: tabScripts, view: 'scripts', enabled: availability.canOpenScripts },
+          { button: tabReports, view: 'reports', enabled: availability.canOpenReports },
+        ];
+        tabConfig.forEach(({ button, view, enabled }) => {
+          button.classList.toggle('is-active', activeView === view);
+          button.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+          button.setAttribute('aria-pressed', activeView === view ? 'true' : 'false');
+          button.dataset.locked = enabled ? 'false' : 'true';
+        });
       }
 
-      function renderStatus(current) {
-        const status = current.status || 'idle';
-        statusPill.className = `status-pill status-${status}`;
-        statusPill.textContent = status;
-        statusText.textContent = getStatusDescription(current);
-        runIdText.textContent = current.run_id || '-';
-        runUrlText.textContent = current.url || '-';
-        manifestText.textContent = current.manifest_path || '-';
-        errorText.textContent = current.error || '-';
-        updatedAt.textContent = formatTime(current.updated_at);
+      function renderActiveView(activeView) {
+        viewDashboard.classList.toggle('is-active', activeView === 'dashboard');
+        viewScripts.classList.toggle('is-active', activeView === 'scripts');
+        viewReports.classList.toggle('is-active', activeView === 'reports');
       }
 
-      function renderScreenshot(current) {
-        const screenshot = current.latest_screenshot;
+      function renderDashboardComposerSummary(state) {
+        dashboardComposer.classList.toggle('is-collapsed', uiState.dashboardComposerCollapsed);
+        toggleDashboardComposerBtn.setAttribute('aria-expanded', uiState.dashboardComposerCollapsed ? 'false' : 'true');
+        toggleDashboardComposerBtn.textContent = uiState.dashboardComposerCollapsed ? '展开顶部配置' : '收起顶部配置';
+        dashboardSummaryStatus.className = `status-pill ${statusClassName(state.status)}`;
+        dashboardSummaryStatus.textContent = state.status;
+        dashboardSummaryText.textContent = `${getStatusDescription(state)} 当前 run：${formatValue(state.run_id)}。`;
+        dashboardComposerSummary.hidden = !uiState.dashboardComposerCollapsed;
+      }
+
+      function renderStatusSummary(state) {
+        statusText.textContent = getStatusDescription(state);
+        manifestText.textContent = formatValue(state.manifest_path);
+        errorText.textContent = formatValue(state.error);
+        summaryScriptBadge.textContent = state.hasScript ? '脚本已生成' : '脚本未生成';
+        summaryReportBadge.textContent = state.hasReport ? '报告已生成' : '报告未生成';
+        summaryScreenshotBadge.textContent = state.latest_screenshot ? '截图可用' : '截图未生成';
+        summaryScriptBadge.className = `summary-badge ${state.hasScript ? 'is-available' : 'is-unavailable'}`;
+        summaryReportBadge.className = `summary-badge ${state.hasReport ? 'is-available' : 'is-unavailable'}`;
+        summaryScreenshotBadge.className = `summary-badge ${state.latest_screenshot ? 'is-available' : 'is-unavailable'}`;
+      }
+
+      function renderPreview(state) {
+        const screenshot = state.latest_screenshot;
         if (!screenshot) {
           openImageLink.hidden = true;
           openImageLink.removeAttribute('href');
           uiState.lastScreenshotUrl = null;
-          if (current.status === 'running') {
+          if (state.status === 'preparing') {
+            screenshotStage.innerHTML = '<div class="empty-state"><strong>正在准备运行</strong><p>浏览器与上下文正在初始化，请稍候进入实时画面。</p></div>';
+            imageNote.textContent = '准备阶段通常还不会出现最新截图。';
+            return;
+          }
+          if (state.status === 'running') {
             screenshotStage.innerHTML = '<div class="empty-state"><strong>运行中，暂时还没有截图</strong><p>通常会在第一批浏览器动作执行后出现，请稍候刷新。</p></div>';
             imageNote.textContent = '截图会随 /api/state 中的 latest_screenshot 自动更新。';
             return;
           }
-          if (current.status === 'failed') {
+          if (state.status === 'failed') {
             screenshotStage.innerHTML = '<div class="empty-state"><strong>本次运行没有可展示截图</strong><p>如果运行在截图生成前失败，这里会保持空态。</p></div>';
             imageNote.textContent = '失败后如无截图产物，原图入口不会显示。';
             return;
@@ -804,14 +1528,22 @@
           return;
         }
 
-        const cacheBuster = encodeURIComponent(current.updated_at || Date.now());
-        const imageUrl = `${screenshot}?t=${cacheBuster}`;
+        const publicScreenshot = toPublicArtifactHref(screenshot);
+        if (!publicScreenshot) {
+          openImageLink.hidden = true;
+          openImageLink.removeAttribute('href');
+          screenshotStage.innerHTML = '<div class="empty-state"><strong>截图路径当前不可访问</strong><p>后端已返回截图记录，但当前页面无法将其映射为可公开访问的 outputs 链接。</p></div>';
+          imageNote.textContent = '请检查 latest_screenshot 返回值是否位于 /outputs 下。';
+          return;
+        }
+        const cacheBuster = encodeURIComponent(state.updated_at || Date.now());
+        const imageUrl = `${publicScreenshot}?t=${cacheBuster}`;
         if (uiState.lastScreenshotUrl !== imageUrl) {
           screenshotStage.innerHTML = `<img src="${imageUrl}" alt="当前运行截图" />`;
           uiState.lastScreenshotUrl = imageUrl;
         }
         openImageLink.hidden = false;
-        openImageLink.href = screenshot;
+        openImageLink.href = publicScreenshot;
         imageNote.textContent = '点击“查看原图”可在新窗口打开最新截图文件。';
       }
 
@@ -823,8 +1555,8 @@
         return JSON.stringify(log, null, 2);
       }
 
-      function renderLogs(current) {
-        const logs = Array.isArray(current.logs) ? current.logs : [];
+      function renderLogs(state) {
+        const logs = Array.isArray(state.logs) ? state.logs : [];
         if (!logs.length) {
           logList.innerHTML = '<div class="log-empty">当前还没有日志输出。</div>';
           return;
@@ -847,59 +1579,146 @@
         }).join('');
       }
 
-      function renderReport(current) {
-        if (current.final_report) {
-          reportBox.className = 'report-card';
-          reportBox.innerHTML = `<pre class="report-body">${escapeHtml(current.final_report)}</pre>`;
-          return;
-        }
-        if (current.status === 'failed') {
-          reportBox.className = 'report-card';
-          reportBox.innerHTML = `<pre class="report-body">运行失败\n\n${escapeHtml(current.error || '未返回详细错误。')}</pre>`;
-          return;
-        }
-        if (current.status === 'running') {
-          reportBox.className = 'report-empty';
-          reportBox.textContent = '运行进行中，最终报告尚未生成。';
-          return;
-        }
-        reportBox.className = 'report-empty';
-        reportBox.textContent = '最终报告会在运行结束后显示在这里。';
-      }
-
-      function applyState(current) {
-        const safeState = {
-          status: 'idle',
-          run_id: null,
-          manifest_path: null,
-          url: '',
-          scenario_input: '',
-          latest_screenshot: null,
-          logs: [],
-          final_report: null,
-          error: null,
-          updated_at: '',
-          ...current,
-        };
-
-        maybeHydrateInputs(safeState);
-        renderStatus(safeState);
-        renderScreenshot(safeState);
-        renderLogs(safeState);
-        renderReport(safeState);
-        syncControls(safeState);
-
+      function renderDashboard(state) {
+        const dashboardMode = deriveDashboardMode(state);
+        renderDashboardComposerSummary(state);
+        renderStatusSummary(state);
+        renderPreview(state);
+        renderLogs(state);
         if (!uiState.starting && !uiState.resetting) {
-          if (safeState.status === 'running') {
+          if (dashboardMode === 'preparing') {
+            setBanner('warning', '正在准备运行：Dashboard 保持可见，Scripts 和 Reports 仍为锁定态。');
+          } else if (dashboardMode === 'running') {
             setBanner('info', '运行中：表单已禁用，状态、截图和日志会自动刷新。');
-          } else if (safeState.status === 'completed') {
-            setBanner('success', '运行已完成，可以查看最终报告。');
-          } else if (safeState.status === 'failed') {
-            setBanner('error', `运行失败：${safeState.error || '请查看日志。'}`);
+          } else if (dashboardMode === 'completed') {
+            setBanner('success', '运行已完成，可以切换到 Scripts 与 Reports 浏览交付内容。');
+          } else if (dashboardMode === 'failed') {
+            setBanner('error', `运行失败：${state.error || '请查看日志。'}`);
           } else {
             setBanner('info', '请先填写参数并开始运行。URL 留空时，将由后端使用默认值。');
           }
         }
+      }
+
+      function renderSummaryCard(target, title, state, subtitle) {
+        target.innerHTML = `
+          <div class="summary-row">
+            <div>
+              <div class="status-pill ${statusClassName(state.status)}">${escapeHtml(state.status)}</div>
+            </div>
+            <div class="report-meta">${escapeHtml(formatTime(state.updated_at))}</div>
+          </div>
+          <div class="summary-text">${escapeHtml(subtitle)}</div>
+          <div class="summary-meta">
+            <div class="meta-item">
+              <span>Run ID</span>
+              <strong>${escapeHtml(formatValue(state.run_id))}</strong>
+            </div>
+            <div class="meta-item">
+              <span>目标 URL</span>
+              <strong>${escapeHtml(formatValue(state.url))}</strong>
+            </div>
+            <div class="meta-item">
+              <span>${escapeHtml(title)}</span>
+              <strong>${escapeHtml(formatValue(state.manifest_path))}</strong>
+            </div>
+            <div class="meta-item">
+              <span>状态摘要</span>
+              <strong>${escapeHtml(getStatusDescription(state))}</strong>
+            </div>
+          </div>
+        `;
+      }
+
+      function buildArtifactLinks(state, artifactsResource) {
+        const source = artifactsResource.data || {};
+        return [
+          { label: 'report.md', path: toPublicArtifactHref(source.report_path || state.reportPath), hint: state.hasReport ? '最终报告文件' : '当前不可用' },
+          { label: 'manifest.json', path: toPublicArtifactHref(source.manifest_path || state.manifest_path), hint: '本次 run 的 manifest' },
+          { label: 'latest screenshot', path: toPublicArtifactHref(source.latest_screenshot || state.latest_screenshot), hint: state.latest_screenshot ? '最新截图文件' : '当前不可用' },
+          { label: 'test.spec.ts', path: toPublicArtifactHref(source.test_script_path || state.scriptPath), hint: state.hasScript ? '生成的脚本文件' : '当前不可用' },
+        ];
+      }
+
+      function renderLinkCollection(target, links) {
+        target.innerHTML = links.map((link) => {
+          if (!link.path) {
+            return `<span class="artifact-link is-disabled"><span>${escapeHtml(link.label)}</span><small>${escapeHtml(link.hint)}</small></span>`;
+          }
+          return `<a class="artifact-link" href="${escapeHtml(link.path)}" target="_blank" rel="noreferrer"><span>${escapeHtml(link.label)}</span><small>${escapeHtml(link.hint)}</small></a>`;
+        }).join('');
+      }
+
+      function renderScripts(state, scriptResource, artifactsResource) {
+        const scriptsMode = deriveScriptsMode(state, scriptResource);
+        renderSummaryCard(scriptsSummary, 'Manifest', state, 'Scripts 只在完成后开放，是本次测试脚本的只读交付页。');
+        openOutputsLink.href = toPublicArtifactHref(state.manifest_path) || '#';
+        openOutputsLink.classList.toggle('is-disabled', !toPublicArtifactHref(state.manifest_path));
+        openScriptLink.href = toPublicArtifactHref(state.scriptPath) || '#';
+        openScriptLink.classList.toggle('is-disabled', !toPublicArtifactHref(state.scriptPath));
+        copyScriptBtn.disabled = !(scriptResource.data && scriptResource.data.content);
+
+        if (scriptsMode === 'locked') {
+          scriptsStateBanner.className = 'state-banner warning';
+          scriptsStateBanner.textContent = state.status === 'failed' ? '本次运行失败且没有脚本可交付，Scripts 仍保持锁定。' : '运行尚未完成，Scripts 仍保持锁定态。';
+          scriptsStatePanel.className = 'resource-empty';
+          scriptsStatePanel.innerHTML = '<div class="locked-state"><strong>Scripts 已锁定</strong><p>未完成时不允许进入。failed 时只有在 has_script 为 true 的情况下才会解锁该页。</p></div>';
+        } else if (scriptsMode === 'loading') {
+          scriptsStateBanner.className = 'state-banner info';
+          scriptsStateBanner.textContent = '正在按需加载 test.spec.ts。';
+          scriptsStatePanel.className = 'resource-empty';
+          scriptsStatePanel.textContent = '正在加载脚本内容，请稍候。';
+        } else if (scriptsMode === 'error') {
+          scriptsStateBanner.className = 'state-banner error';
+          scriptsStateBanner.textContent = `脚本加载失败：${scriptResource.error}`;
+          scriptsStatePanel.className = 'resource-empty';
+          scriptsStatePanel.textContent = '脚本接口返回失败，稍后可以重新进入该视图触发刷新。';
+        } else if (scriptsMode === 'empty') {
+          scriptsStateBanner.className = 'state-banner info';
+          scriptsStateBanner.textContent = '运行已完成，但本次没有生成 test.spec.ts。';
+          scriptsStatePanel.className = 'resource-empty';
+          scriptsStatePanel.textContent = '本次运行未生成 test.spec.ts。';
+        } else {
+          scriptsStateBanner.className = scriptsMode === 'failed_ready' ? 'state-banner warning' : 'state-banner success';
+          scriptsStateBanner.textContent = scriptsMode === 'failed_ready' ? '运行失败，但脚本已生成。' : '脚本已生成，可以复制或直接打开文件。';
+          scriptsStatePanel.className = 'code-card';
+          scriptsStatePanel.innerHTML = `<pre><code class="code-block">${escapeHtml(scriptResource.data?.content || '')}</code></pre>`;
+        }
+
+        renderLinkCollection(scriptsLinks, buildArtifactLinks(state, artifactsResource));
+      }
+
+      function renderReports(state, artifactsResource) {
+        const reportsMode = deriveReportsMode(state, artifactsResource);
+        renderSummaryCard(reportsSummary, 'Manifest', state, 'Reports 聚焦最终报告与产物链接，不再承载输入行为。');
+        if (reportsMode === 'locked') {
+          reportsStateBanner.className = 'state-banner warning';
+          reportsStateBanner.textContent = '只有 completed 或 failed 后才能进入 Reports。';
+          reportBox.className = 'report-empty';
+          reportBox.innerHTML = '<div class="locked-state"><strong>Reports 已锁定</strong><p>运行中仍停留在 Dashboard；完成后才进入结果交付浏览。</p></div>';
+        } else if (reportsMode === 'loading') {
+          reportsStateBanner.className = 'state-banner info';
+          reportsStateBanner.textContent = '正在加载关键产物摘要。';
+          reportBox.className = 'report-empty';
+          reportBox.textContent = '正在加载报告与产物链接，请稍候。';
+        } else if (reportsMode === 'failed_ready') {
+          reportsStateBanner.className = 'state-banner error';
+          reportsStateBanner.textContent = '本次运行失败，Reports 改为展示失败摘要与可用产物。';
+          reportBox.className = 'report-card';
+          reportBox.innerHTML = `<pre class="report-body">运行失败\n\n${escapeHtml(state.error || '未返回详细错误。')}</pre>`;
+        } else if (state.final_report) {
+          reportsStateBanner.className = 'state-banner success';
+          reportsStateBanner.textContent = '运行已完成，以下是最终报告与关键交付链接。';
+          reportBox.className = 'report-card';
+          reportBox.innerHTML = `<pre class="report-body">${escapeHtml(state.final_report)}</pre>`;
+        } else {
+          reportsStateBanner.className = 'state-banner info';
+          reportsStateBanner.textContent = '运行已完成，但最终报告内容为空。';
+          reportBox.className = 'report-empty';
+          reportBox.textContent = '最终报告会在运行结束后显示在这里。';
+        }
+
+        renderLinkCollection(reportLinks, buildArtifactLinks(state, artifactsResource));
       }
 
       async function requestJson(url, options) {
@@ -907,18 +1726,111 @@
         const contentType = response.headers.get('content-type') || '';
         const payload = contentType.includes('application/json') ? await response.json() : await response.text();
         if (!response.ok) {
-          const detail = typeof payload === 'string'
-            ? payload
-            : payload.detail || payload.error || JSON.stringify(payload);
+          const detail = typeof payload === 'string' ? payload : payload.detail || payload.error || JSON.stringify(payload);
           throw new Error(detail || '请求失败');
         }
         return payload;
       }
 
-      async function refreshState() {
+      async function fetchStateResource() {
         const data = await requestJson('/api/state');
-        applyState(data);
-        return data;
+        return normalizeState(data);
+      }
+
+      async function fetchScriptResource() {
+        const data = await requestJson('/api/script');
+        return {
+          path: data.path ?? null,
+          content: data.content ?? null,
+          hasScript: data.has_script ?? Boolean(data.path),
+        };
+      }
+
+      async function fetchArtifactsResource() {
+        const data = await requestJson('/api/artifacts');
+        return {
+          manifest_path: data.manifest_path ?? null,
+          run_dir: data.run_dir ?? null,
+          latest_screenshot: data.latest_screenshot ?? null,
+          report_path: data.report_path ?? null,
+          test_script_path: data.test_script_path ?? null,
+          has_report: data.has_report ?? Boolean(data.report_path),
+          has_script: data.has_script ?? Boolean(data.test_script_path),
+        };
+      }
+
+      async function ensureScriptResource(state) {
+        if (!state) return;
+        if (!deriveAvailability(state).canOpenScripts) return;
+        if (uiState.scriptResource.loaded || uiState.scriptResource.loading) return;
+        uiState.scriptResource.loading = true;
+        uiState.scriptResource.error = null;
+        renderScripts(state, uiState.scriptResource, uiState.artifactsResource);
+        try {
+          uiState.scriptResource.data = await fetchScriptResource();
+          uiState.scriptResource.loaded = true;
+        } catch (error) {
+          uiState.scriptResource.error = error.message || String(error);
+        } finally {
+          uiState.scriptResource.loading = false;
+          if (uiState.currentState) renderScripts(uiState.currentState, uiState.scriptResource, uiState.artifactsResource);
+        }
+      }
+
+      async function ensureArtifactsResource(state) {
+        if (!state) return;
+        if (!deriveAvailability(state).canOpenReports && !deriveAvailability(state).canOpenScripts) return;
+        if (uiState.artifactsResource.loaded || uiState.artifactsResource.loading) return;
+        uiState.artifactsResource.loading = true;
+        uiState.artifactsResource.error = null;
+        if (uiState.currentState) {
+          renderScripts(uiState.currentState, uiState.scriptResource, uiState.artifactsResource);
+          renderReports(uiState.currentState, uiState.artifactsResource);
+        }
+        try {
+          uiState.artifactsResource.data = await fetchArtifactsResource();
+          uiState.artifactsResource.loaded = true;
+        } catch (error) {
+          uiState.artifactsResource.error = error.message || String(error);
+        } finally {
+          uiState.artifactsResource.loading = false;
+          if (uiState.currentState) {
+            renderScripts(uiState.currentState, uiState.scriptResource, uiState.artifactsResource);
+            renderReports(uiState.currentState, uiState.artifactsResource);
+          }
+        }
+      }
+
+      function renderAll(state) {
+        maybeHydrateInputs(state);
+        invalidateDerivedResourcesIfRunChanged(state);
+        const availability = deriveAvailability(state);
+        uiState.activeView = coerceActiveView(uiState.activeView, availability);
+        renderAppChrome(state, availability, uiState.activeView);
+        renderActiveView(uiState.activeView);
+        renderDashboard(state);
+        renderScripts(state, uiState.scriptResource, uiState.artifactsResource);
+        renderReports(state, uiState.artifactsResource);
+        syncControls(state);
+        if (uiState.activeView === 'scripts') {
+          void ensureScriptResource(state);
+          void ensureArtifactsResource(state);
+        }
+        if (uiState.activeView === 'reports') {
+          void ensureArtifactsResource(state);
+        }
+      }
+
+      function applyState(current) {
+        const state = normalizeState(current);
+        uiState.currentState = state;
+        renderAll(state);
+      }
+
+      async function refreshState() {
+        const state = await fetchStateResource();
+        applyState(state);
+        return state;
       }
 
       function startPolling() {
@@ -932,9 +1844,44 @@
         }, 2000);
       }
 
+      function setActiveView(view) {
+        if (!uiState.currentState) return;
+        const availability = deriveAvailability(uiState.currentState);
+        if (view === 'scripts' && !availability.canOpenScripts) return;
+        if (view === 'reports' && !availability.canOpenReports) return;
+        uiState.activeView = coerceActiveView(view, availability);
+        renderAll(uiState.currentState);
+      }
+
+      [tabDashboard, tabScripts, tabReports].forEach((button) => {
+        button.addEventListener('click', () => {
+          setActiveView(button.dataset.viewTarget);
+        });
+      });
+
+      toggleDashboardComposerBtn.addEventListener('click', () => {
+        uiState.dashboardComposerCollapsed = !uiState.dashboardComposerCollapsed;
+        if (uiState.currentState) {
+          renderDashboardComposerSummary(uiState.currentState);
+        }
+      });
+
+      copyScriptBtn.addEventListener('click', async () => {
+        const content = uiState.scriptResource.data?.content;
+        if (!content) return;
+        try {
+          await navigator.clipboard.writeText(content);
+          scriptsStateBanner.className = 'state-banner success';
+          scriptsStateBanner.textContent = '代码已复制到剪贴板。';
+        } catch (error) {
+          scriptsStateBanner.className = 'state-banner error';
+          scriptsStateBanner.textContent = `复制失败：${error.message || error}`;
+        }
+      });
+
       startBtn.addEventListener('click', async () => {
         uiState.starting = true;
-        syncControls({ status: 'idle' });
+        syncControls(normalizeState(uiState.currentState || { status: 'idle' }));
         setBanner('info', '正在提交运行请求...');
         try {
           const payload = {
@@ -951,6 +1898,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
+          uiState.activeView = 'dashboard';
           setBanner('info', '运行已启动，正在同步状态与截图。');
           applyState(data);
           await refreshState();
@@ -967,7 +1915,7 @@
 
       resetBtn.addEventListener('click', async () => {
         uiState.resetting = true;
-        syncControls({ status: 'idle' });
+        syncControls(normalizeState(uiState.currentState || { status: 'idle' }));
         try {
           const data = await requestJson('/api/reset', { method: 'POST' });
           urlInput.value = '';
@@ -976,6 +1924,7 @@
           autoSaveInput.checked = false;
           accountIdInput.value = '';
           uiState.lastScreenshotUrl = null;
+          uiState.activeView = 'dashboard';
           setBanner('success', '状态已重置，表单已恢复为空。');
           applyState(data);
         } catch (error) {

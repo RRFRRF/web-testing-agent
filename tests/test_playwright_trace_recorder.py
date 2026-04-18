@@ -246,3 +246,49 @@ def test_record_screenshot_command_saves_screenshot_only(tmp_path: Path):
     assert result.status == "success"
     assert result.screenshot_path is not None
     assert result.snapshot_path is None
+
+
+def test_build_test_script_collects_multiple_real_playwright_code_blocks(tmp_path: Path):
+    recorder = PlaywrightTraceRecorder(
+        run_id="run-1",
+        outputs_dir=tmp_path,
+        manifest_path=tmp_path / "manifest.json",
+    )
+
+    recorder.record_command_trace(
+        phase="initial",
+        command="playwright-cli open https://example.com",
+        command_type="open",
+        exit_code=0,
+        output=(
+            "### Browser `default` opened with pid 1.\n"
+            "### Ran Playwright code\n"
+            "```js\n"
+            "await page.goto('https://example.com');\n"
+            "```\n"
+            "### Page\n- Page URL: https://example.com\n"
+        ),
+        screenshot_command=_successful_screenshot,
+    )
+    recorder.record_command_trace(
+        phase="action",
+        command="playwright-cli click text=Search",
+        command_type="click",
+        exit_code=0,
+        output=(
+            "### Ran Playwright code\n"
+            "```js\n"
+            "await page.getByRole('button', { name: 'Search' }).click();\n"
+            "```\n"
+            "### Page\n- Page URL: https://example.com/results\n"
+        ),
+        screenshot_command=_successful_screenshot,
+    )
+
+    script = recorder.build_test_script("https://example.com", test_name="real-output")
+
+    assert "await page.goto('https://example.com');" in script
+    assert "await page.getByRole('button', { name: 'Search' }).click();" in script
+    assert script.count("await page.") == 2
+    assert script.startswith("import { test, expect } from '@playwright/test';")
+    assert "test('real-output'" in script

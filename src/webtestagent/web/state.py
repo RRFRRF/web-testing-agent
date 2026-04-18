@@ -19,6 +19,68 @@ from webtestagent.core.runner import PreparedRun, execute_prepared_run, prepare_
 from webtestagent.core.session import SessionPersistenceConfig
 
 
+def _read_manifest_data(manifest_path: str | None) -> dict[str, Any]:
+    if not manifest_path:
+        return {}
+    path = Path(manifest_path)
+    if not path.exists():
+        return {}
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _manifest_artifacts(manifest_path: str | None) -> list[dict[str, Any]]:
+    data = _read_manifest_data(manifest_path)
+    artifacts = data.get("artifacts") or []
+    if not isinstance(artifacts, list):
+        return []
+    return [item for item in artifacts if isinstance(item, dict)]
+
+
+def _artifact_path(manifest_path: str | None, artifact_type: str) -> str | None:
+    for item in reversed(_manifest_artifacts(manifest_path)):
+        if item.get("type") == artifact_type:
+            saved_path = item.get("path")
+            if isinstance(saved_path, str) and saved_path:
+                return saved_path
+    return None
+
+
+def artifact_summary(state: "CurrentRunState") -> dict[str, Any]:
+    report_path = _artifact_path(state.manifest_path, "report")
+    test_script_path = _artifact_path(state.manifest_path, "playwright-test")
+    latest_screenshot = _latest_screenshot_path(state.manifest_path)
+    return {
+        "manifest_path": state.manifest_path,
+        "run_dir": state.run_dir,
+        "latest_screenshot": latest_screenshot,
+        "report_path": report_path,
+        "test_script_path": test_script_path,
+        "has_report": bool(report_path),
+        "has_script": bool(test_script_path),
+    }
+
+
+def script_payload(state: "CurrentRunState") -> dict[str, Any]:
+    test_script_path = _artifact_path(state.manifest_path, "playwright-test")
+    if not test_script_path:
+        return {"path": None, "content": None, "has_script": False}
+
+    try:
+        content = Path(test_script_path).read_text(encoding="utf-8")
+    except OSError:
+        content = None
+    return {
+        "path": test_script_path,
+        "content": content,
+        "has_script": True,
+    }
+
+
 @dataclass
 class CurrentRunState:
     status: str = "idle"
@@ -36,6 +98,7 @@ class CurrentRunState:
 
     def snapshot(self) -> dict[str, Any]:
         with self.lock:
+            summary = artifact_summary(self)
             return {
                 "status": self.status,
                 "run_id": self.run_id,
@@ -43,11 +106,15 @@ class CurrentRunState:
                 "manifest_path": self.manifest_path,
                 "url": self.url,
                 "scenario_input": self.scenario_input,
-                "latest_screenshot": self.latest_screenshot,
+                "latest_screenshot": summary["latest_screenshot"],
                 "logs": list(self.logs),
                 "final_report": self.final_report,
                 "error": self.error,
                 "updated_at": self.updated_at,
+                "report_path": summary["report_path"],
+                "test_script_path": summary["test_script_path"],
+                "has_script": summary["has_script"],
+                "has_report": summary["has_report"],
             }
 
     def reset(self) -> None:

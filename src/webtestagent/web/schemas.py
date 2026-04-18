@@ -63,3 +63,23 @@ class CurrentRunResponse(BaseModel):
     final_report: str | None = None
     error: str | None = None
     updated_at: str
+    report_path: str | None = None
+    test_script_path: str | None = None
+    has_script: bool = False
+    has_report: bool = False
+
+
+class ScriptResponse(BaseModel):
+    path: str | None = None
+    content: str | None = None
+    has_script: bool = False
+
+
+class ArtifactsResponse(BaseModel):
+    manifest_path: str | None = None
+    run_dir: str | None = None
+    latest_screenshot: str | None = None
+    report_path: str | None = None
+    test_script_path: str | None = None
+    has_report: bool = False
+    has_script: bool = False

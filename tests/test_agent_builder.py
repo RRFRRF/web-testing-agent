@@ -80,7 +80,71 @@ class TestBuildModel:
                 api_key="sk-test",
                 base_url="https://api.openai.com/v1",
                 temperature=0,
+                request_timeout=120,
             )
+
+    def test_build_model_sets_request_timeout_to_bound_stream_wait(self):
+        from webtestagent.core.agent_builder import build_model
+
+        with (
+            patch(
+                "webtestagent.core.agent_builder.require_env",
+                side_effect=lambda key: {
+                    "OPENAI_MODEL": "gpt-4",
+                    "OPENAI_API_KEY": "sk-test",
+                    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+                }[key],
+            ),
+            patch("webtestagent.core.agent_builder.ChatOpenAI") as mock_chat,
+        ):
+            build_model()
+            assert mock_chat.call_args.kwargs["request_timeout"] == 120
+
+
+class TestResolveRuntimeContext:
+    def test_prefers_runtime_context(self):
+        from webtestagent.core.agent_builder import _resolve_runtime_context
+
+        runtime = SimpleNamespace(
+            context={"run_id": "r1", "outputs_dir": "/tmp/out", "manifest_path": "/tmp/out/manifest.json"},
+            config={},
+        )
+
+        assert _resolve_runtime_context(runtime)["run_id"] == "r1"
+
+    def test_falls_back_to_top_level_config_context(self):
+        from webtestagent.core.agent_builder import _resolve_runtime_context
+
+        runtime = SimpleNamespace(
+            context=None,
+            config={
+                "context": {
+                    "run_id": "r1",
+                    "outputs_dir": "/tmp/out",
+                    "manifest_path": "/tmp/out/manifest.json",
+                }
+            },
+        )
+
+        assert _resolve_runtime_context(runtime)["run_id"] == "r1"
+
+    def test_falls_back_to_configurable_context(self):
+        from webtestagent.core.agent_builder import _resolve_runtime_context
+
+        runtime = SimpleNamespace(
+            context=None,
+            config={
+                "configurable": {
+                    "context": {
+                        "run_id": "r1",
+                        "outputs_dir": "/tmp/out",
+                        "manifest_path": "/tmp/out/manifest.json",
+                    }
+                }
+            },
+        )
+
+        assert _resolve_runtime_context(runtime)["run_id"] == "r1"
 
 
 # ── build_agent ─────────────────────────────────────────
@@ -139,6 +203,56 @@ class TestBuildAgent:
                     "outputs_dir": "/tmp/out",
                     "manifest_path": "/tmp/out/manifest.json",
                 }
+            )
+            assert backend_factory(runtime) == "wrapped-backend"
+            mock_recorder.assert_called_once()
+
+    def test_build_agent_uses_config_context_when_runtime_context_missing(self):
+        from webtestagent.core.agent_builder import build_agent
+
+        mock_model = MagicMock()
+        mock_tools = [MagicMock()]
+        mock_agent = MagicMock()
+        base_backend = MagicMock()
+
+        with (
+            patch(
+                "webtestagent.core.agent_builder.build_model", return_value=mock_model
+            ),
+            patch(
+                "webtestagent.core.agent_builder.resolve_playwright_cli",
+                return_value="playwright-cli",
+            ),
+            patch(
+                "webtestagent.core.agent_builder.build_browser_tools",
+                return_value=mock_tools,
+            ),
+            patch(
+                "webtestagent.core.agent_builder.create_deep_agent",
+                return_value=mock_agent,
+            ) as mock_create,
+            patch(
+                "webtestagent.core.agent_builder.LocalShellBackend",
+                return_value=base_backend,
+            ),
+            patch(
+                "webtestagent.core.agent_builder.TracingShellBackend",
+                return_value="wrapped-backend",
+            ),
+            patch("webtestagent.core.agent_builder.MemorySaver"),
+            patch("webtestagent.core.agent_builder.PlaywrightTraceRecorder") as mock_recorder,
+        ):
+            build_agent()
+            backend_factory = mock_create.call_args.kwargs["backend"]
+            runtime = SimpleNamespace(
+                context=None,
+                config={
+                    "context": {
+                        "run_id": "r1",
+                        "outputs_dir": "/tmp/out",
+                        "manifest_path": "/tmp/out/manifest.json",
+                    }
+                },
             )
             assert backend_factory(runtime) == "wrapped-backend"
             mock_recorder.assert_called_once()

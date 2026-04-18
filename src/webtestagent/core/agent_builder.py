@@ -47,6 +47,7 @@ def build_model() -> ChatOpenAI:
         api_key=require_env("OPENAI_API_KEY"),
         base_url=require_env("OPENAI_BASE_URL"),
         temperature=0,
+        request_timeout=120,
     )
 
 
@@ -85,6 +86,25 @@ def build_backend(run_context: dict[str, Any] | None = None) -> Any:
     return TracingShellBackend(backend=backend, recorder=recorder)
 
 
+def _resolve_runtime_context(runtime: Any) -> dict[str, Any] | None:
+    context = getattr(runtime, "context", None)
+    if isinstance(context, dict) and context:
+        return context
+
+    config = getattr(runtime, "config", None)
+    if isinstance(config, dict):
+        nested_context = config.get("context")
+        if isinstance(nested_context, dict) and nested_context:
+            return nested_context
+        configurable = config.get("configurable")
+        if isinstance(configurable, dict):
+            nested_context = configurable.get("context")
+            if isinstance(nested_context, dict) and nested_context:
+                return nested_context
+
+    return None
+
+
 def build_agent() -> Any:
     """创建并返回配置好的 Deep Agent。"""
     missing: list[str] = []
@@ -103,7 +123,7 @@ def build_agent() -> Any:
         model=build_model(),
         tools=build_browser_tools(),
         system_prompt=SYSTEM_PROMPT,
-        backend=lambda runtime: build_backend(getattr(runtime, "context", None)),
+        backend=lambda runtime: build_backend(_resolve_runtime_context(runtime)),
         skills=[SKILLS_DIR],
         middleware=[get_message_normalizer()],
         checkpointer=MemorySaver(),

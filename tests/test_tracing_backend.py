@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
+
+from deepagents.backends.protocol import SandboxBackendProtocol
 
 from webtestagent.core.tracing_backend import TracingShellBackend
 
@@ -9,10 +12,20 @@ from webtestagent.core.tracing_backend import TracingShellBackend
 class FakeBackend:
     def __init__(self):
         self.calls = []
+        self.id = "fake-backend"
+
+    def ls(self, path: str):
+        return f"ls:{path}"
+
+    def read(self, file_path: str, offset: int = 0, limit: int = 2000):
+        return f"read:{file_path}:{offset}:{limit}"
 
     def execute(self, command: str, *, timeout: int | None = None):
         self.calls.append((command, timeout))
         return SimpleNamespace(output="### Snapshot\nbutton", exit_code=0, truncated=False)
+
+    async def aexecute(self, command: str, *, timeout: int | None = None):
+        return self.execute(command, timeout=timeout)
 
 
 def test_traces_matching_playwright_commands_returns_only_summary(tmp_path):
@@ -150,3 +163,40 @@ def test_screenshot_command_traced_without_extra_screenshot(tmp_path):
     assert recorded[0]["command_type"] == "screenshot"
     assert recorded[0]["is_read_command"] is True
     assert recorded[0]["screenshot_command"] is None
+
+
+def test_backend_looks_like_sandbox_backend_protocol():
+    backend = TracingShellBackend(
+        backend=FakeBackend(),
+        recorder=SimpleNamespace(record_command_trace=lambda **kwargs: None),
+    )
+
+    assert backend.id == "fake-backend"
+    assert isinstance(backend, SandboxBackendProtocol)
+
+
+def test_async_execute_traces_playwright_commands():
+    recorded = []
+
+    class FakeRecorder:
+        def record_command_trace(self, **kwargs):
+            recorded.append(kwargs)
+            return SimpleNamespace(summary="trace saved", warnings=[])
+
+    backend = TracingShellBackend(
+        backend=FakeBackend(),
+        recorder=FakeRecorder(),
+    )
+
+    response = asyncio.run(backend.aexecute("playwright-cli fill input hello"))
+    assert "[trace saved]" in response.output
+    assert recorded[0]["command_type"] == "fill"
+
+
+def test_proxies_ls_to_wrapped_backend():
+    backend = TracingShellBackend(
+        backend=FakeBackend(),
+        recorder=SimpleNamespace(record_command_trace=lambda **kwargs: None),
+    )
+
+    assert backend.ls("/skills") == "ls:/skills"

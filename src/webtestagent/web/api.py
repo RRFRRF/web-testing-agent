@@ -14,12 +14,19 @@ from fastapi.staticfiles import StaticFiles
 from webtestagent.config.scenarios import get_default_url
 from webtestagent.config.settings import OUTPUTS_DIR, configure_utf8_runtime, init_env
 from webtestagent.web.middleware import MaxBodySizeMiddleware
-from webtestagent.web.schemas import CurrentRunResponse, RunRequest
+from webtestagent.web.schemas import (
+    ArtifactsResponse,
+    CurrentRunResponse,
+    RunRequest,
+    ScriptResponse,
+)
 from webtestagent.web.state import (
     CurrentRunState,
+    artifact_summary,
     release_reservation,
     reserve_run,
     run_worker,
+    script_payload,
     start_run,
 )
 
@@ -56,6 +63,14 @@ def create_app() -> FastAPI:
     @app.get("/api/state", response_model=CurrentRunResponse)
     async def get_state() -> CurrentRunResponse:
         return CurrentRunResponse(**app.state.current_run.snapshot())
+
+    @app.get("/api/script", response_model=ScriptResponse)
+    async def get_script() -> ScriptResponse:
+        return ScriptResponse(**script_payload(app.state.current_run))
+
+    @app.get("/api/artifacts", response_model=ArtifactsResponse)
+    async def get_artifacts() -> ArtifactsResponse:
+        return ArtifactsResponse(**artifact_summary(app.state.current_run))
 
     @app.post("/api/run", status_code=201, response_model=CurrentRunResponse)
     async def post_run(req: RunRequest) -> CurrentRunResponse:

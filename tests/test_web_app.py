@@ -11,6 +11,22 @@ from webtestagent.web.api import create_app
 from webtestagent.web.state import append_event
 
 
+def _write_manifest(tmp_path, *, artifacts: list[dict] | None = None, target_url: str = "https://example.com"):
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        __import__("json").dumps(
+            {
+                "run_id": "run-1",
+                "target_url": target_url,
+                "artifacts": artifacts or [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return manifest_path
+
+
 @pytest.fixture
 def client():
     app = create_app()
@@ -36,7 +52,7 @@ def test_index_page_uses_single_run_workbench_contract(client):
 
     assert response.status_code == 200
     html = response.text
-    assert "单次运行工作台" in html
+    assert "运行工作台" in html
     assert "最终报告" in html
     assert "/api/state" in html
     assert "/api/run" in html
@@ -261,3 +277,116 @@ def test_append_event_keeps_trace_event_payload_and_uses_trace_screenshot(client
     assert response.status_code == 200
     assert response.json()["latest_screenshot"] == screenshot_path
     assert response.json()["logs"] == [event]
+
+
+def test_get_state_includes_script_and_report_flags(client, tmp_path):
+    manifest_path = _write_manifest(
+        tmp_path,
+        artifacts=[
+            {"type": "report", "path": "/outputs/run-1/report.md"},
+            {"type": "playwright-test", "path": "/outputs/run-1/test.spec.ts"},
+        ],
+    )
+    state = client.app.state.current_run
+    state.status = "completed"
+    state.run_id = "run-1"
+    state.manifest_path = manifest_path.as_posix()
+
+    response = client.get("/api/state")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["has_report"] is True
+    assert data["report_path"] == "/outputs/run-1/report.md"
+    assert data["has_script"] is True
+    assert data["test_script_path"] == "/outputs/run-1/test.spec.ts"
+
+
+@pytest.mark.parametrize(
+    ("status", "expect_script"),
+    [("failed", True), ("completed", True), ("failed", False)],
+)
+def test_get_state_handles_terminal_status_artifact_flags(
+    client, tmp_path, status, expect_script
+):
+    artifacts = [{"type": "report", "path": "/outputs/run-1/report.md"}]
+    if expect_script:
+        artifacts.append({"type": "playwright-test", "path": "/outputs/run-1/test.spec.ts"})
+
+    manifest_path = _write_manifest(tmp_path, artifacts=artifacts)
+    state = client.app.state.current_run
+    state.status = status
+    state.run_id = "run-1"
+    state.manifest_path = manifest_path.as_posix()
+
+    response = client.get("/api/state")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == status
+    assert data["has_report"] is True
+    assert data["has_script"] is expect_script
+
+
+def test_get_script_returns_script_content_and_path(client, tmp_path):
+    script_path = tmp_path / "test.spec.ts"
+    script_path.write_text("test('run-1', async () => {});\n", encoding="utf-8")
+    manifest_path = _write_manifest(
+        tmp_path,
+        artifacts=[{"type": "playwright-test", "path": script_path.as_posix()}],
+    )
+    state = client.app.state.current_run
+    state.status = "completed"
+    state.run_id = "run-1"
+    state.manifest_path = manifest_path.as_posix()
+
+    response = client.get("/api/script")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "path": script_path.as_posix(),
+        "content": "test('run-1', async () => {});\n",
+        "has_script": True,
+    }
+
+
+def test_get_script_returns_empty_payload_when_script_missing(client, tmp_path):
+    manifest_path = _write_manifest(tmp_path, artifacts=[])
+    state = client.app.state.current_run
+    state.status = "failed"
+    state.run_id = "run-1"
+    state.manifest_path = manifest_path.as_posix()
+
+    response = client.get("/api/script")
+
+    assert response.status_code == 200
+    assert response.json() == {"path": None, "content": None, "has_script": False}
+
+
+def test_get_artifacts_returns_key_links(client, tmp_path):
+    manifest_path = _write_manifest(
+        tmp_path,
+        artifacts=[
+            {"type": "trace-screenshot", "path": "/outputs/run-1/screenshots/last.png"},
+            {"type": "report", "path": "/outputs/run-1/report.md"},
+            {"type": "playwright-test", "path": "/outputs/run-1/test.spec.ts"},
+        ],
+    )
+    state = client.app.state.current_run
+    state.status = "completed"
+    state.run_id = "run-1"
+    state.run_dir = tmp_path.as_posix()
+    state.manifest_path = manifest_path.as_posix()
+
+    response = client.get("/api/artifacts")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "manifest_path": manifest_path.as_posix(),
+        "run_dir": tmp_path.as_posix(),
+        "latest_screenshot": "/outputs/run-1/screenshots/last.png",
+        "report_path": "/outputs/run-1/report.md",
+        "test_script_path": "/outputs/run-1/test.spec.ts",
+        "has_report": True,
+        "has_script": True,
+    }
