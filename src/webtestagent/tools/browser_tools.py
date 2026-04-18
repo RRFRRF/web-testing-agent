@@ -20,6 +20,8 @@ from webtestagent.core.artifacts import (
     slugify_label,
 )
 
+INLINE_SNAPSHOT_MAX_CHARS = 9000
+
 
 class OpenPageInput(BaseModel):
     url: str = Field(description="要打开的目标 URL")
@@ -146,8 +148,15 @@ def _register_existing_file(
     return format_artifact_response(record)
 
 
+def _extract_artifact_path(summary: str) -> str | None:
+    for line in summary.splitlines():
+        if line.startswith("- path: "):
+            return line.removeprefix("- path: ").strip()
+    return None
+
+
 def open_page(url: str, config: RunnableConfig) -> str:
-    """在有头模式下打开目标页面。"""
+    """Legacy/internal unused helper: open a page in headed mode and persist command output."""
     if not url.lower().startswith(("http://", "https://")):
         raise ValueError(f"URL must start with http:// or https://: {url!r}")
     result = _run_playwright([*_playwright_prefix(), "open", url, "--headed"])
@@ -206,25 +215,23 @@ def _capture_screenshot_record(*, label: str, config: RunnableConfig) -> dict[st
 
 
 def capture_snapshot(label: str, config: RunnableConfig) -> str:
-    """采集 snapshot，并默认同时截图，将原始结果落盘。"""
+    """Capture a snapshot, always persist snapshot+screenshot, and inline small snapshots."""
     result = _run_playwright([*_playwright_prefix(), "snapshot"])
     output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
+    snapshot_text = output.strip()
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to capture snapshot: {output.strip()}")
-    snapshot_response = _register_command_result(
+        raise RuntimeError(f"Failed to capture snapshot: {snapshot_text}")
+
+    snapshot_summary = _register_command_result(
         config=config,
         artifact_type="snapshot",
         label=label,
         artifact_subdir="snapshots",
         suffix=".yaml",
-        content=output.strip(),
+        content=snapshot_text,
     )
-
-    snapshot_path = None
-    for line in snapshot_response.splitlines():
-        if line.startswith("- path: "):
-            snapshot_path = line.removeprefix("- path: ").strip()
-            break
+    snapshot_path = _extract_artifact_path(snapshot_summary)
+    is_full_inline = len(snapshot_text) < INLINE_SNAPSHOT_MAX_CHARS
 
     screenshot_label = f"{label}-auto"
     screenshot: dict[str, Any] | None = None
@@ -234,24 +241,31 @@ def capture_snapshot(label: str, config: RunnableConfig) -> str:
     except Exception as exc:
         screenshot_error = str(exc)
 
+    snapshot_payload = {
+        "artifact_type": "snapshot",
+        "label": label,
+        "path": snapshot_path,
+        "summary": (
+            snapshot_text
+            if is_full_inline
+            else "Snapshot too large to inline; read the saved artifact if you need the full DOM."
+        ),
+        "is_full_inline": is_full_inline,
+        "content": snapshot_text if is_full_inline else None,
+        "content_chars": len(snapshot_text),
+    }
+
     return json.dumps(
         {
-            "snapshot": {
-                "artifact_type": "snapshot",
-                "label": label,
-                "path": snapshot_path,
-                "summary": snapshot_response,
-            },
+            "snapshot": snapshot_payload,
             "screenshot": screenshot,
             "screenshot_error": screenshot_error,
         },
         ensure_ascii=False,
         indent=2,
     )
-
-
 def capture_console(label: str, config: RunnableConfig) -> str:
-    """采集 console 输出并落盘。"""
+    """Legacy/internal unused helper: capture console output and persist it."""
     result = _run_playwright([*_playwright_prefix(), "console"])
     output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
     if result.returncode != 0:
@@ -267,7 +281,7 @@ def capture_console(label: str, config: RunnableConfig) -> str:
 
 
 def capture_network(label: str, config: RunnableConfig) -> str:
-    """采集 network 输出并落盘。"""
+    """Legacy/internal unused helper: capture network output and persist it."""
     result = _run_playwright([*_playwright_prefix(), "network"])
     output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
     if result.returncode != 0:
@@ -289,10 +303,7 @@ def capture_screenshot(label: str, config: RunnableConfig) -> str:
 
 
 def run_browser_command(command: str, label: str, config: RunnableConfig) -> str:
-    """执行自定义 playwright-cli 子命令，并将输出落盘。
-
-    适用于必要时执行轻量命令，但推荐优先使用专门工具。
-    """
+    """Legacy/internal unused helper: run a raw playwright-cli command and persist the result."""
     # 拒绝含 -- 的命令，防止注入 playwright-cli flag
     if "--" in command:
         raise ValueError(
@@ -324,13 +335,13 @@ def build_browser_tools() -> list[StructuredTool]:
     return [
         StructuredTool.from_function(
             name="capture_snapshot",
-            description="Capture a page snapshot, automatically save a companion screenshot, persist both artifacts under outputs/{run_id}/, and return JSON containing the snapshot summary plus screenshot path.",
+            description="Capture a page snapshot, always save the snapshot artifact plus an automatic companion screenshot, inline the full snapshot content when it is under 9000 characters, and otherwise return the saved path with a summary.",
             func=capture_snapshot,
             args_schema=ArtifactCaptureInput,
         ),
         StructuredTool.from_function(
             name="capture_screenshot",
-            description="Capture an on-demand screenshot when the agent decides a separate screenshot is useful, save it to outputs/{run_id}/screenshots/, and return JSON with the saved file path.",
+            description="Capture an on-demand screenshot when a separate screenshot is useful, save it to outputs/{run_id}/screenshots/, and return JSON with the saved file path.",
             func=capture_screenshot,
             args_schema=ArtifactCaptureInput,
         ),

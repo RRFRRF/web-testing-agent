@@ -6,9 +6,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
-from langchain.agents.middleware.types import wrap_model_call
+try:
+    from langchain.agents.middleware.types import wrap_model_call
+except ModuleNotFoundError:  # pragma: no cover - 测试环境可无 langchain
+    def wrap_model_call(func: Callable[..., Any]) -> Callable[..., Any]:
+        return func
+
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,

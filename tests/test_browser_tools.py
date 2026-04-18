@@ -13,7 +13,9 @@ from webtestagent.tools.browser_tools import (
     ArtifactCaptureInput,
     BrowserActionInput,
     OpenPageInput,
+    INLINE_SNAPSHOT_MAX_CHARS,
     _artifact_dir,
+    _extract_artifact_path,
     _get_run_values,
     _manifest_path,
     _playwright_prefix,
@@ -209,7 +211,13 @@ class TestRegisterResults:
         assert "after-click" in result
 
 
-# ── open_page ────────────────────────────────────────────
+class TestArtifactPathHelper:
+    def test_extract_artifact_path(self):
+        summary = "- artifact_type: snapshot\n- label: home\n- path: /tmp/out.yaml\n"
+        assert _extract_artifact_path(summary) == "/tmp/out.yaml"
+
+    def test_extract_artifact_path_missing(self):
+        assert _extract_artifact_path("- label: home\n") is None
 
 
 class TestOpenPage:
@@ -262,7 +270,6 @@ class TestCaptureSnapshot:
                 "webtestagent.tools.browser_tools._capture_screenshot_record"
             ) as mock_ss,
         ):
-            # snapshot call succeeds
             mock_pw.return_value = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout="snapshot-data", stderr=""
             )
@@ -276,7 +283,66 @@ class TestCaptureSnapshot:
             result = capture_snapshot("home", config)
             parsed = json.loads(result)
             assert parsed["snapshot"]["artifact_type"] == "snapshot"
+            assert parsed["snapshot"]["is_full_inline"] is True
+            assert parsed["snapshot"]["content"] == "snapshot-data"
+            assert parsed["snapshot"]["content_chars"] == len("snapshot-data")
             assert parsed["screenshot"] is not None
+
+    def test_small_snapshot_inlines_full_content(self, tmp_path):
+        config = {"context": {"run_id": "r1", "outputs_dir": str(tmp_path)}}
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        small_snapshot = "root:\n  button: search\n"
+        with (
+            patch("webtestagent.tools.browser_tools._run_playwright") as mock_pw,
+            patch("webtestagent.tools.browser_tools._playwright_prefix", return_value=["pw"]),
+            patch("webtestagent.tools.browser_tools._capture_screenshot_record") as mock_ss,
+        ):
+            mock_pw.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout=small_snapshot, stderr=""
+            )
+            mock_ss.return_value = {
+                "artifact_type": "screenshot",
+                "label": "home-auto",
+                "path": "/tmp/ss.png",
+                "size_bytes": 1024,
+                "preview": "ok",
+            }
+
+            result = json.loads(capture_snapshot("home", config))
+
+        assert result["snapshot"]["is_full_inline"] is True
+        assert result["snapshot"]["content"] == small_snapshot.strip()
+        assert result["snapshot"]["content_chars"] == len(small_snapshot.strip())
+        assert result["snapshot"]["summary"] == small_snapshot.strip()
+        assert result["snapshot"]["path"]
+
+    def test_large_snapshot_returns_path_only(self, tmp_path):
+        config = {"context": {"run_id": "r1", "outputs_dir": str(tmp_path)}}
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        large_snapshot = "x" * INLINE_SNAPSHOT_MAX_CHARS
+        with (
+            patch("webtestagent.tools.browser_tools._run_playwright") as mock_pw,
+            patch("webtestagent.tools.browser_tools._playwright_prefix", return_value=["pw"]),
+            patch("webtestagent.tools.browser_tools._capture_screenshot_record") as mock_ss,
+        ):
+            mock_pw.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout=large_snapshot, stderr=""
+            )
+            mock_ss.return_value = {
+                "artifact_type": "screenshot",
+                "label": "home-auto",
+                "path": "/tmp/ss.png",
+                "size_bytes": 1024,
+                "preview": "ok",
+            }
+
+            result = json.loads(capture_snapshot("home", config))
+
+        assert result["snapshot"]["is_full_inline"] is False
+        assert result["snapshot"]["content"] is None
+        assert result["snapshot"]["content_chars"] == len(large_snapshot)
+        assert "too large" in result["snapshot"]["summary"].lower()
+        assert result["snapshot"]["path"]
 
     def test_screenshot_error_graceful(self, tmp_path):
         config = {"context": {"run_id": "r1", "outputs_dir": str(tmp_path)}}
@@ -299,6 +365,7 @@ class TestCaptureSnapshot:
             parsed = json.loads(result)
             assert parsed["screenshot"] is None
             assert parsed["screenshot_error"] is not None
+            assert parsed["snapshot"]["path"] is not None
 
     def test_failure_raises(self):
         config = {"context": {"run_id": "r1", "outputs_dir": "/tmp"}}
@@ -451,6 +518,13 @@ class TestBuildBrowserTools:
         names = [t.name for t in tools]
         assert "capture_snapshot" in names
         assert "capture_screenshot" in names
+
+    def test_only_snapshot_and_screenshot_are_exported(self):
+        tools = build_browser_tools()
+        assert [tool.name for tool in tools] == [
+            "capture_snapshot",
+            "capture_screenshot",
+        ]
 
     def test_tools_are_structured(self):
         tools = build_browser_tools()

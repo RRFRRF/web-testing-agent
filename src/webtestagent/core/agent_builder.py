@@ -5,17 +5,36 @@ from __future__ import annotations
 import shutil
 from typing import Any
 
-from deepagents import create_deep_agent
-from deepagents.backends import LocalShellBackend
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import MemorySaver
 
-from webtestagent.tools.browser_tools import build_browser_tools
+try:
+    from deepagents import create_deep_agent
+    from deepagents.backends import LocalShellBackend
+except ModuleNotFoundError:  # pragma: no cover - 由测试覆盖缺依赖场景
+    create_deep_agent = None
+    LocalShellBackend = None
+
+try:
+    from langgraph.checkpoint.memory import MemorySaver
+except ModuleNotFoundError:  # pragma: no cover - 由测试覆盖缺依赖场景
+    MemorySaver = None
+
 from webtestagent.config.settings import PROJECT_ROOT, SKILLS_DIR, require_env
-from webtestagent.middleware.message_normalizer import (
-    normalize_messages_for_compatible_endpoint,
-)
 from webtestagent.prompts.system import SYSTEM_PROMPT
+
+
+def build_browser_tools() -> list[Any]:
+    from webtestagent.tools.browser_tools import build_browser_tools as _build_browser_tools
+
+    return _build_browser_tools()
+
+
+def get_message_normalizer():
+    from webtestagent.middleware.message_normalizer import (
+        normalize_messages_for_compatible_endpoint,
+    )
+
+    return normalize_messages_for_compatible_endpoint
 
 
 def build_model() -> ChatOpenAI:
@@ -44,6 +63,18 @@ def resolve_playwright_cli() -> str:
 
 def build_agent() -> Any:
     """创建并返回配置好的 Deep Agent。"""
+    missing: list[str] = []
+    if create_deep_agent is None or LocalShellBackend is None:
+        missing.append("deepagents")
+    if MemorySaver is None:
+        missing.append("langgraph")
+    if missing:
+        joined = ", ".join(missing)
+        raise RuntimeError(
+            "Missing optional runtime dependencies for build_agent: "
+            f"{joined}. Install project dependencies before running end-to-end flows."
+        )
+
     backend = LocalShellBackend(
         root_dir=str(PROJECT_ROOT),
         virtual_mode=True,
@@ -60,6 +91,6 @@ def build_agent() -> Any:
         system_prompt=SYSTEM_PROMPT,
         backend=backend,
         skills=[SKILLS_DIR],
-        middleware=[normalize_messages_for_compatible_endpoint],
+        middleware=[get_message_normalizer()],
         checkpointer=MemorySaver(),
     )
