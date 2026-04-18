@@ -50,6 +50,7 @@ class PreparedRun:
     thread_id: str
     session_state: ResolvedSessionState | None = None
     initial_trace: dict[str, Any] | None = None
+    recorder: Any = None
 
 
 @dataclass
@@ -104,7 +105,13 @@ def _run_playwright_screenshot(cli_command: str, path: Path) -> tuple[int, str]:
     return result.returncode, output.strip()
 
 
-def capture_initial_trace(*, run_context: RunContext, url: str, cli_command: str) -> dict[str, Any]:
+def capture_initial_trace(
+    *,
+    run_context: RunContext,
+    url: str,
+    cli_command: str,
+    recorder: PlaywrightTraceRecorder | None = None,
+) -> dict[str, Any]:
     from webtestagent.core.playwright_trace_recorder import PlaywrightTraceRecorder
 
     command = f"{cli_command} open {url}"
@@ -115,11 +122,12 @@ def capture_initial_trace(*, run_context: RunContext, url: str, cli_command: str
     if open_result.returncode != 0:
         raise RuntimeError(f"Failed to open initial page: {output.strip()}")
 
-    recorder = PlaywrightTraceRecorder(
-        run_id=run_context.run_id,
-        outputs_dir=run_context.run_dir,
-        manifest_path=run_context.manifest_path,
-    )
+    if recorder is None:
+        recorder = PlaywrightTraceRecorder(
+            run_id=run_context.run_id,
+            outputs_dir=run_context.run_dir,
+            manifest_path=run_context.manifest_path,
+        )
     trace = recorder.record_command_trace(
         phase="initial",
         command=command,
@@ -177,12 +185,21 @@ def prepare_run(
             )
 
     cli_command = resolve_playwright_cli()
+
+    from webtestagent.core.playwright_trace_recorder import PlaywrightTraceRecorder
+    recorder = PlaywrightTraceRecorder(
+        run_id=run_context.run_id,
+        outputs_dir=run_context.run_dir,
+        manifest_path=run_context.manifest_path,
+    )
+
     initial_trace: dict[str, Any] | None = None
     try:
         initial_trace = capture_initial_trace(
             run_context=run_context,
             url=url,
             cli_command=cli_command,
+            recorder=recorder,
         )
     except RuntimeError as exc:
         initial_trace = {
@@ -205,6 +222,7 @@ def prepare_run(
             "outputs_dir": run_context.run_dir.as_posix(),
             "manifest_path": run_context.manifest_path.as_posix(),
             "target_url": url,
+            "recorder": recorder,
         },
     }
 
@@ -232,6 +250,7 @@ def prepare_run(
         thread_id=resolved_thread_id,
         session_state=session_state,
         initial_trace=initial_trace,
+        recorder=recorder,
     )
 
 
@@ -260,6 +279,29 @@ def save_final_report(prepared: PreparedRun, final_report: str) -> Path:
         preview=build_preview(final_report),
     )
     return report_path
+
+
+def save_playwright_test_script(prepared: PreparedRun) -> Path | None:
+    """将收集的 Playwright 代码拼成测试脚本落盘。"""
+    if prepared.recorder is None:
+        return None
+    test_name = f"test-{prepared.run_context.run_id}"
+    script = prepared.recorder.build_test_script(
+        url=prepared.url, test_name=test_name
+    )
+    if not script:
+        return None
+    script_path = prepared.run_context.run_dir / "test.spec.ts"
+    script_path.write_text(script, encoding="utf-8")
+    register_file_artifact(
+        manifest_path=prepared.run_context.manifest_path,
+        run_id=prepared.run_context.run_id,
+        artifact_type="playwright-test",
+        label="generated-test-script",
+        file_path=script_path,
+        preview=build_preview(script),
+    )
+    return script_path
 
 
 def execute_prepared_run(
@@ -318,6 +360,7 @@ def execute_prepared_run(
 
         final_report = extract_text(final_result)
         report_path = save_final_report(prepared, final_report)
+        test_script_path = save_playwright_test_script(prepared)
         emit_event(
             on_event,
             {
@@ -328,6 +371,7 @@ def execute_prepared_run(
                     "run_id": prepared.run_context.run_id,
                     "report_path": report_path.as_posix(),
                     "manifest_path": prepared.run_context.manifest_path.as_posix(),
+                    "test_script_path": test_script_path.as_posix() if test_script_path else None,
                 },
             },
         )

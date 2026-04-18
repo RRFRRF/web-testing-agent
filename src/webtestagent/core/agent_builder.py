@@ -77,7 +77,7 @@ def build_backend(run_context: dict[str, Any] | None = None) -> Any:
     )
     if not run_context:
         return backend
-    recorder = PlaywrightTraceRecorder(
+    recorder = run_context.get("recorder") or PlaywrightTraceRecorder(
         run_id=run_context["run_id"],
         outputs_dir=Path(run_context["outputs_dir"]),
         manifest_path=Path(run_context["manifest_path"]),

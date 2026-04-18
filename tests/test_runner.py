@@ -345,12 +345,12 @@ class TestPrepareRun:
             patch("webtestagent.core.runner.build_agent", return_value=MagicMock()),
             patch("webtestagent.core.runner.capture_initial_trace") as mock_capture,
         ):
-            prepare_run("https://example.com", "场景")
-            mock_capture.assert_called_once_with(
-                run_context=fake_context,
-                url="https://example.com",
-                cli_command="playwright-cli",
-            )
+            prepared = prepare_run("https://example.com", "场景")
+            call_kwargs = mock_capture.call_args.kwargs
+            assert call_kwargs["run_context"] is fake_context
+            assert call_kwargs["url"] == "https://example.com"
+            assert call_kwargs["cli_command"] == "playwright-cli"
+            assert call_kwargs["recorder"] is prepared.recorder
 
     def test_prepare_run_survives_partial_initial_trace(self, tmp_path):
         fake_context = SimpleNamespace(

@@ -42,6 +42,7 @@ class PlaywrightTraceRecorder:
         self.snapshots_dir = outputs_dir / "snapshots"
         self.screenshots_dir = outputs_dir / "screenshots"
         self.console_dir = outputs_dir / "console"
+        self._script_lines: list[str] = []
         for path in (
             self.traces_dir,
             self.snapshots_dir,
@@ -182,6 +183,12 @@ class PlaywrightTraceRecorder:
             f"screenshot={trace_payload['screenshot_path']}, "
             f"snapshot={trace_payload['snapshot_path']}"
         )
+
+        # Collect generated Playwright code for test script generation
+        code_lines = self._extract_playwright_code(output)
+        if code_lines:
+            self._script_lines.extend(code_lines)
+
         return TraceRecordResult(
             step_index=step_index,
             status=status,
@@ -227,3 +234,28 @@ class PlaywrightTraceRecorder:
         if len(snapshot_text) < INLINE_SNAPSHOT_MAX_CHARS:
             return snapshot_text
         return "Snapshot too large to inline; read the saved artifact if you need the full DOM."
+
+    def _extract_playwright_code(self, output: str) -> list[str]:
+        marker = "### Ran Playwright code"
+        if marker not in output:
+            return []
+        after = output.split(marker, 1)[1]
+        code_block = re.search(r"```(?:js|javascript)?\s*\n(.*?)```", after, re.DOTALL)
+        if not code_block:
+            return []
+        return [line for line in code_block.group(1).strip().splitlines() if line.strip()]
+
+    def get_collected_script_lines(self) -> list[str]:
+        return list(self._script_lines)
+
+    def build_test_script(self, url: str, test_name: str = "auto-generated") -> str:
+        lines = self._script_lines
+        if not lines:
+            return ""
+        header = (
+            "import { test, expect } from '@playwright/test';\n"
+            f"\ntest('{test_name}', async ({{ page }}) => {{\n"
+        )
+        body = "\n".join(f"  {line}" for line in lines)
+        footer = "\n});\n"
+        return header + body + footer
