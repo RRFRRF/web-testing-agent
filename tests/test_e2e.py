@@ -45,7 +45,15 @@ def mock_build_agent(fake_agent):
             "webtestagent.core.runner.resolve_playwright_cli",
             return_value="npx playwright-cli",
         ):
-            yield fake_agent
+            with patch(
+                "webtestagent.core.runner.capture_initial_trace",
+                return_value={
+                    "summary": "initial trace saved",
+                    "warnings": [],
+                    "screenshot_path": None,
+                },
+            ):
+                yield fake_agent
 
 
 class TestCLIE2E:

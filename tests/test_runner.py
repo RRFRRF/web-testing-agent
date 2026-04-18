@@ -313,6 +313,21 @@ class TestPrepareRun:
             assert prepared.session_state is None
             assert prepared.initial_trace == {"summary": "trace ok", "warnings": []}
 
+    def test_run_playwright_command_supports_resolved_cmd_path(self):
+        from webtestagent.core.runner import _run_playwright_command
+
+        with patch("webtestagent.core.runner.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock()
+            _run_playwright_command(r'C:\node\playwright-cli.cmd open https://example.com')
+            mock_run.assert_called_once_with(
+                ["C:\\node\\playwright-cli.cmd", "open", "https://example.com"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+
     def test_prepare_run_creates_initial_trace(self, tmp_path):
         fake_context = SimpleNamespace(
             run_id="run-1",

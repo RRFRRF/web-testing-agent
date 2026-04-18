@@ -52,12 +52,12 @@ def build_model() -> ChatOpenAI:
 
 def resolve_playwright_cli() -> str:
     """检测 playwright-cli 可用路径。"""
-    cli = shutil.which("playwright-cli")
+    cli = shutil.which("playwright-cli") or shutil.which("playwright-cli.cmd")
     if cli:
-        return "playwright-cli"
-    npx = shutil.which("npx")
+        return cli
+    npx = shutil.which("npx") or shutil.which("npx.cmd")
     if npx:
-        return "npx playwright-cli"
+        return f"{npx} playwright-cli"
     raise RuntimeError(
         "playwright-cli is not available. "
         "Please install @playwright/cli globally or make npx available."

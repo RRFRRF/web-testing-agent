@@ -17,22 +17,34 @@ class TestResolvePlaywrightCli:
     """测试 playwright-cli 路径检测逻辑。"""
 
     def test_found_playwright_cli(self):
-        """playwright-cli 在 PATH 中直接返回。"""
+        """playwright-cli 在 PATH 中直接返回可执行路径。"""
         with patch("webtestagent.core.agent_builder.shutil.which") as mock_which:
             mock_which.side_effect = lambda name: (
                 "/usr/bin/playwright-cli" if name == "playwright-cli" else None
             )
             result = resolve_playwright_cli()
-        assert result == "playwright-cli"
+        assert result == "/usr/bin/playwright-cli"
+
+    def test_found_playwright_cli_cmd_on_windows(self):
+        with patch("webtestagent.core.agent_builder.shutil.which") as mock_which:
+            mock_which.side_effect = lambda name: (
+                "C:/node/playwright-cli.cmd" if name == "playwright-cli.cmd" else None
+            )
+            result = resolve_playwright_cli()
+        assert result == "C:/node/playwright-cli.cmd"
 
     def test_fallback_to_npx(self):
         """playwright-cli 不在 PATH，但 npx 在。"""
         with patch("webtestagent.core.agent_builder.shutil.which") as mock_which:
             mock_which.side_effect = lambda name: (
-                None if name == "playwright-cli" else "/usr/bin/npx"
+                None
+                if name in {"playwright-cli", "playwright-cli.cmd"}
+                else "/usr/bin/npx"
+                if name == "npx"
+                else None
             )
             result = resolve_playwright_cli()
-        assert result == "npx playwright-cli"
+        assert result == "/usr/bin/npx playwright-cli"
 
     def test_not_found_raises(self):
         """两者都不在 PATH 时抛出 RuntimeError。"""

@@ -87,7 +87,7 @@ def inject_run_environment(run_context: RunContext) -> None:
 
 def _run_playwright_command(command: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        shlex.split(command),
+        shlex.split(command, posix=False),
         capture_output=True,
         text=True,
         encoding="utf-8",
