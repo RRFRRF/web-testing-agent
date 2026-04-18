@@ -26,6 +26,8 @@ def test_get_state_returns_idle_by_default(client):
     assert data["run_id"] is None
     assert data["logs"] == []
     assert data["final_report"] is None
+    assert data["url"] == "https://www.12306.cn/index/"
+    assert "测试从天津到上海的购票查询流程" in data["scenario_input"]
 
 
 def test_index_page_uses_single_run_workbench_contract(client):
@@ -84,6 +86,8 @@ def test_reset_allows_terminal_states(client, status):
     assert data["run_id"] is None
     assert data["error"] is None
     assert data["final_report"] is None
+    assert data["url"] == "https://www.12306.cn/index/"
+    assert "测试从天津到上海的购票查询流程" in data["scenario_input"]
 
 
 def test_reset_rejects_while_running(client):

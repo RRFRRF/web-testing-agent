@@ -830,7 +830,8 @@
           return;
         }
 
-        logList.innerHTML = logs.map((log) => {
+        const orderedLogs = [...logs].reverse();
+        logList.innerHTML = orderedLogs.map((log) => {
           const kind = [log.channel, log.mode].filter(Boolean).join(' / ') || 'log';
           const meta = [log.tool_name, log.node, log.run_id].filter(Boolean).join(' · ');
           return `

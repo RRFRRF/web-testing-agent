@@ -8,7 +8,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from webtestagent.config.scenarios import load_scenario, load_session_defaults
+from webtestagent.config.scenarios import (
+    get_default_scenario_input,
+    get_default_url,
+    load_scenario,
+    load_session_defaults,
+)
 from webtestagent.config.settings import now_iso
 from webtestagent.core.runner import PreparedRun, execute_prepared_run, prepare_run
 from webtestagent.core.session import SessionPersistenceConfig
@@ -20,8 +25,8 @@ class CurrentRunState:
     run_id: str | None = None
     run_dir: str | None = None
     manifest_path: str | None = None
-    url: str = ""
-    scenario_input: str = ""
+    url: str = field(default_factory=get_default_url)
+    scenario_input: str = field(default_factory=get_default_scenario_input)
     latest_screenshot: str | None = None
     logs: list[dict[str, Any]] = field(default_factory=list)
     final_report: str | None = None
@@ -51,8 +56,8 @@ class CurrentRunState:
             self.run_id = None
             self.run_dir = None
             self.manifest_path = None
-            self.url = ""
-            self.scenario_input = ""
+            self.url = get_default_url()
+            self.scenario_input = get_default_scenario_input()
             self.latest_screenshot = None
             self.logs = []
             self.final_report = None

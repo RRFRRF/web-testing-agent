@@ -33,6 +33,20 @@ def get_default_url() -> str:
     return scenarios.get("default_url", "https://www.12306.cn/index/")
 
 
+def get_default_scenario_input() -> str:
+    """返回适合 Web 文本框展示的默认 scenario 输入。"""
+    scenarios = _load_scenarios_file()
+    scenario_text = scenarios.get("scenario")
+    if isinstance(scenario_text, str) and scenario_text.strip():
+        return _replace_today(scenario_text.strip())
+
+    raw_steps = scenarios.get("steps")
+    if raw_steps:
+        return json.dumps(_normalize_steps(raw_steps), ensure_ascii=False, indent=2)
+
+    return ""
+
+
 def build_default_steps() -> list[dict[str, str]]:
     """从场景配置构建默认步骤列表，支持 {today} 占位符。"""
     scenarios = _load_scenarios_file()
