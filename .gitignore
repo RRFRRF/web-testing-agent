@@ -3,6 +3,7 @@
 cookies/
 outputs/
 .claude/
+.worktrees/
 __pycache__/
 .playwright-cli/
 *.pyc

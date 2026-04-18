@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -288,6 +289,10 @@ class TestPrepareRun:
             patch("webtestagent.core.runner.build_prompt", return_value="test prompt"),
             patch("webtestagent.core.runner.resolve_playwright_cli", return_value="pw"),
             patch("webtestagent.core.runner.build_agent", return_value=MagicMock()),
+            patch(
+                "webtestagent.core.runner.capture_initial_trace",
+                return_value={"summary": "trace ok", "warnings": []},
+            ),
         ):
             mock_ctx.return_value = RunContext(
                 run_id="test-run",
@@ -306,6 +311,55 @@ class TestPrepareRun:
             assert prepared.cli_command == "pw"
             assert prepared.run_context.run_id == "test-run"
             assert prepared.session_state is None
+            assert prepared.initial_trace == {"summary": "trace ok", "warnings": []}
+
+    def test_prepare_run_creates_initial_trace(self, tmp_path):
+        fake_context = SimpleNamespace(
+            run_id="run-1",
+            run_dir=tmp_path,
+            manifest_path=tmp_path / "manifest.json",
+        )
+
+        with (
+            patch("webtestagent.core.runner.init_env"),
+            patch("webtestagent.core.runner.create_run_context", return_value=fake_context),
+            patch("webtestagent.core.runner.ensure_manifest"),
+            patch("webtestagent.core.runner.update_manifest_target_url"),
+            patch("webtestagent.core.runner.build_prompt", return_value="prompt"),
+            patch("webtestagent.core.runner.resolve_playwright_cli", return_value="playwright-cli"),
+            patch("webtestagent.core.runner.build_agent", return_value=MagicMock()),
+            patch("webtestagent.core.runner.capture_initial_trace") as mock_capture,
+        ):
+            prepare_run("https://example.com", "场景")
+            mock_capture.assert_called_once_with(
+                run_context=fake_context,
+                url="https://example.com",
+                cli_command="playwright-cli",
+            )
+
+    def test_prepare_run_survives_partial_initial_trace(self, tmp_path):
+        fake_context = SimpleNamespace(
+            run_id="run-1",
+            run_dir=tmp_path,
+            manifest_path=tmp_path / "manifest.json",
+        )
+
+        with (
+            patch("webtestagent.core.runner.init_env"),
+            patch("webtestagent.core.runner.create_run_context", return_value=fake_context),
+            patch("webtestagent.core.runner.ensure_manifest"),
+            patch("webtestagent.core.runner.update_manifest_target_url"),
+            patch("webtestagent.core.runner.build_prompt", return_value="prompt"),
+            patch("webtestagent.core.runner.resolve_playwright_cli", return_value="playwright-cli"),
+            patch("webtestagent.core.runner.build_agent", return_value=MagicMock()),
+            patch("webtestagent.core.runner.capture_initial_trace", side_effect=RuntimeError("partial trace")),
+        ):
+            prepared = prepare_run("https://example.com", "场景")
+            assert prepared.run_context.run_id == "run-1"
+            assert prepared.initial_trace == {
+                "summary": "initial trace warning: partial trace",
+                "warnings": ["partial trace"],
+            }
 
 
 # ── prepare_run 不再注入全局环境变量 ─────────────────────
@@ -321,6 +375,7 @@ class TestPrepareRunContextIsolation:
             patch("webtestagent.core.runner.build_prompt", return_value="test prompt"),
             patch("webtestagent.core.runner.resolve_playwright_cli", return_value="pw"),
             patch("webtestagent.core.runner.build_agent", return_value=MagicMock()),
+            patch("webtestagent.core.runner.capture_initial_trace", return_value=None),
             patch("webtestagent.core.runner.inject_run_environment") as inject_mock,
         ):
             mock_ctx.return_value = RunContext(
@@ -391,6 +446,60 @@ class TestExecutePreparedRun:
         assert result.run_id == "r1"
         assert result.final_report == "Test passed"
         assert result.report_path.exists()
+
+    def test_execute_emits_initial_trace_event(self, tmp_path):
+        run_dir = tmp_path / "r1"
+        run_dir.mkdir()
+        manifest_path = run_dir / "manifest.json"
+        manifest_path.write_text('{"run_id": "r1", "artifacts": []}', encoding="utf-8")
+
+        ctx = RunContext(
+            run_id="r1",
+            run_dir=run_dir,
+            snapshots_dir=run_dir / "snapshots",
+            screenshots_dir=run_dir / "screenshots",
+            console_dir=run_dir / "console",
+            network_dir=run_dir / "network",
+            manifest_path=manifest_path,
+        )
+        prepared = PreparedRun(
+            url="https://example.com",
+            scenario="s",
+            scenario_desc="d",
+            prompt="p",
+            run_context=ctx,
+            cli_command="pw",
+            config={"configurable": {"thread_id": "t1"}},
+            agent=MagicMock(),
+            thread_id="t1",
+            initial_trace={
+                "summary": "playwright trace saved",
+                "warnings": ["screenshot failed"],
+                "screenshot_path": "/outputs/r1/screenshots/001-open.png",
+            },
+        )
+        prepared.agent.stream.return_value = iter([])
+
+        events = []
+
+        with (
+            patch(
+                "webtestagent.core.runner.final_result_from_state",
+                return_value={"messages": ["test result"]},
+            ),
+            patch("webtestagent.core.runner.extract_text", return_value="Test passed"),
+            patch("webtestagent.core.runner.inject_run_environment"),
+        ):
+            execute_prepared_run(prepared, on_event=events.append)
+
+        trace_event = next(event for event in events if event.get("mode") == "trace")
+        assert trace_event["summary"] == "playwright trace saved"
+        assert trace_event["payload"]["phase"] == "initial"
+        assert trace_event["payload"]["warnings"] == ["screenshot failed"]
+        assert (
+            trace_event["payload"]["screenshot_path"]
+            == "/outputs/r1/screenshots/001-open.png"
+        )
 
     def test_execute_error_propagates(self, tmp_path):
         """验证 execute_prepared_run 在 agent 抛异常时正确传播。"""

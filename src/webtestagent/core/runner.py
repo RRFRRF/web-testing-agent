@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -47,6 +49,7 @@ class PreparedRun:
     agent: Any
     thread_id: str
     session_state: ResolvedSessionState | None = None
+    initial_trace: dict[str, Any] | None = None
 
 
 @dataclass
@@ -80,6 +83,56 @@ def inject_run_environment(run_context: RunContext) -> None:
     os.environ["RUN_ID"] = run_context.run_id
     os.environ["OUTPUTS_DIR"] = run_context.run_dir.as_posix()
     os.environ["MANIFEST_PATH"] = run_context.manifest_path.as_posix()
+
+
+def _run_playwright_command(command: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        shlex.split(command),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+
+def _run_playwright_screenshot(cli_command: str, path: Path) -> tuple[int, str]:
+    result = _run_playwright_command(
+        f"{cli_command} screenshot --filename={path.as_posix()}"
+    )
+    output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
+    return result.returncode, output.strip()
+
+
+def capture_initial_trace(*, run_context: RunContext, url: str, cli_command: str) -> dict[str, Any]:
+    from webtestagent.core.playwright_trace_recorder import PlaywrightTraceRecorder
+
+    command = f"{cli_command} open {url}"
+    open_result = _run_playwright_command(command)
+    output = (open_result.stdout or "") + (
+        "\n" + open_result.stderr if open_result.stderr else ""
+    )
+    if open_result.returncode != 0:
+        raise RuntimeError(f"Failed to open initial page: {output.strip()}")
+
+    recorder = PlaywrightTraceRecorder(
+        run_id=run_context.run_id,
+        outputs_dir=run_context.run_dir,
+        manifest_path=run_context.manifest_path,
+    )
+    trace = recorder.record_command_trace(
+        phase="initial",
+        command=command,
+        command_type="open",
+        exit_code=open_result.returncode,
+        output=output.strip(),
+        screenshot_command=lambda path: _run_playwright_screenshot(cli_command, path),
+    )
+    return {
+        "summary": trace.summary,
+        "warnings": trace.warnings,
+        "screenshot_path": trace.screenshot_path,
+    }
 
 
 def prepare_run(
@@ -123,13 +176,26 @@ def prepare_run(
                 message=message,
             )
 
+    cli_command = resolve_playwright_cli()
+    initial_trace: dict[str, Any] | None = None
+    try:
+        initial_trace = capture_initial_trace(
+            run_context=run_context,
+            url=url,
+            cli_command=cli_command,
+        )
+    except RuntimeError as exc:
+        initial_trace = {
+            "summary": f"initial trace warning: {exc}",
+            "warnings": [str(exc)],
+        }
+
     prompt = build_prompt(
         url,
         scenario,
         outputs_dir=run_context.run_dir.as_posix(),
         session_state=session_state,
     )
-    cli_command = resolve_playwright_cli()
     agent = build_agent()
     resolved_thread_id = thread_id or build_thread_id(run_context.run_id)
     config: dict[str, Any] = {
@@ -165,6 +231,7 @@ def prepare_run(
         agent=agent,
         thread_id=resolved_thread_id,
         session_state=session_state,
+        initial_trace=initial_trace,
     )
 
 
@@ -202,6 +269,21 @@ def execute_prepared_run(
     show_full_events: bool = False,
 ) -> RunResult:
     """执行一次已准备好的测试运行。"""
+    if prepared.initial_trace:
+        emit_event(
+            on_event,
+            {
+                "channel": "system",
+                "mode": "trace",
+                "summary": prepared.initial_trace["summary"],
+                "payload": {
+                    "run_id": prepared.run_context.run_id,
+                    "phase": "initial",
+                    "warnings": prepared.initial_trace.get("warnings", []),
+                    "screenshot_path": prepared.initial_trace.get("screenshot_path"),
+                },
+            },
+        )
     emit_event(
         on_event,
         {

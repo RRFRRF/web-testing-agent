@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from webtestagent.web.api import create_app
+from webtestagent.web.state import append_event
 
 
 @pytest.fixture
@@ -230,3 +231,33 @@ def test_outputs_route_serves_files_created_after_app_start(client, tmp_path, mo
 
     assert response.status_code == 200
     assert response.content == b"png-data"
+
+
+def test_append_event_keeps_trace_event_payload_and_uses_trace_screenshot(client, tmp_path):
+    screenshot_path = "/outputs/run-1/screenshots/trace-step-1.png"
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        f'{{"artifacts": [{{"type": "trace-screenshot", "path": "{screenshot_path}"}}]}}',
+        encoding="utf-8",
+    )
+    state = client.app.state.current_run
+    state.manifest_path = manifest_path.as_posix()
+    event = {
+        "type": "trace",
+        "mode": "auto",
+        "payload": {
+            "command": "playwright-cli click e15",
+            "artifact": {
+                "type": "trace-screenshot",
+                "path": screenshot_path,
+            },
+        },
+    }
+
+    append_event(state, event)
+
+    response = client.get("/api/state")
+
+    assert response.status_code == 200
+    assert response.json()["latest_screenshot"] == screenshot_path
+    assert response.json()["logs"] == [event]

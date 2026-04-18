@@ -96,6 +96,33 @@ def _latest_artifact_path(manifest_path: str | None, artifact_type: str) -> str 
     return None
 
 
+def _latest_screenshot_path(manifest_path: str | None) -> str | None:
+    if not manifest_path:
+        return None
+    path = Path(manifest_path)
+    if not path.exists():
+        return None
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    artifacts = data.get("artifacts") or []
+    if not isinstance(artifacts, list):
+        return None
+
+    for item in reversed(artifacts):
+        if isinstance(item, dict) and item.get("type") in {
+            "screenshot",
+            "trace-screenshot",
+        }:
+            saved_path = item.get("path")
+            if isinstance(saved_path, str) and saved_path:
+                return saved_path
+    return None
+
+
 def build_session_config(
     session_payload: dict[str, Any] | None,
 ) -> SessionPersistenceConfig:
@@ -184,9 +211,7 @@ def start_run(
 def append_event(state: CurrentRunState, event: dict[str, Any]) -> None:
     with state.lock:
         state.logs.append(event)
-        state.latest_screenshot = _latest_artifact_path(
-            state.manifest_path, "screenshot"
-        )
+        state.latest_screenshot = _latest_screenshot_path(state.manifest_path)
         state.updated_at = now_iso()
 
 
@@ -194,9 +219,7 @@ def complete_run(state: CurrentRunState, final_report: str) -> None:
     with state.lock:
         state.status = "completed"
         state.final_report = final_report
-        state.latest_screenshot = _latest_artifact_path(
-            state.manifest_path, "screenshot"
-        )
+        state.latest_screenshot = _latest_screenshot_path(state.manifest_path)
         state.updated_at = now_iso()
 
 
@@ -204,9 +227,7 @@ def fail_run(state: CurrentRunState, error: str) -> None:
     with state.lock:
         state.status = "failed"
         state.error = error
-        state.latest_screenshot = _latest_artifact_path(
-            state.manifest_path, "screenshot"
-        )
+        state.latest_screenshot = _latest_screenshot_path(state.manifest_path)
         state.updated_at = now_iso()
 
 

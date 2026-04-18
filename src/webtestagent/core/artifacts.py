@@ -178,14 +178,15 @@ def save_text_artifact(
     label: str,
     suffix: str,
     content: str,
+    filename: str | None = None,
 ) -> ArtifactRecord:
     """保存文本 artifact，并写入 manifest。"""
     lock = _get_manifest_lock(manifest_path)
     with lock:
         data = _read_manifest(manifest_path, run_id=run_id)
         index = len(data["artifacts"]) + 1
-        filename = f"{index:03d}-{slugify_label(label)}{suffix}"
-        file_path = artifact_dir / filename
+        resolved_filename = filename or f"{index:03d}-{slugify_label(label)}{suffix}"
+        file_path = artifact_dir / resolved_filename
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding="utf-8")
         record = ArtifactRecord(
@@ -200,6 +201,29 @@ def save_text_artifact(
         data["artifacts"].append(asdict(record))
         _write_manifest(manifest_path, data)
         return record
+
+
+def save_json_artifact(
+    *,
+    manifest_path: Path,
+    run_id: str,
+    artifact_dir: Path,
+    artifact_type: str,
+    label: str,
+    payload: dict[str, Any],
+    filename: str | None = None,
+) -> ArtifactRecord:
+    """保存 JSON artifact，并写入 manifest。"""
+    return save_text_artifact(
+        manifest_path=manifest_path,
+        run_id=run_id,
+        artifact_dir=artifact_dir,
+        artifact_type=artifact_type,
+        label=label,
+        suffix=".json",
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        filename=filename,
+    )
 
 
 def register_file_artifact(

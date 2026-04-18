@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import shutil
 from typing import Any
 
@@ -20,6 +21,8 @@ except ModuleNotFoundError:  # pragma: no cover - 由测试覆盖缺依赖场景
     MemorySaver = None
 
 from webtestagent.config.settings import PROJECT_ROOT, SKILLS_DIR, require_env
+from webtestagent.core.playwright_trace_recorder import PlaywrightTraceRecorder
+from webtestagent.core.tracing_backend import TracingShellBackend
 from webtestagent.prompts.system import SYSTEM_PROMPT
 
 
@@ -61,6 +64,27 @@ def resolve_playwright_cli() -> str:
     )
 
 
+def build_backend(run_context: dict[str, Any] | None = None) -> Any:
+    backend = LocalShellBackend(
+        root_dir=str(PROJECT_ROOT),
+        virtual_mode=True,
+        env={
+            "PLAYWRIGHT_CLI": resolve_playwright_cli(),
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUTF8": "1",
+        },
+        inherit_env=True,
+    )
+    if not run_context:
+        return backend
+    recorder = PlaywrightTraceRecorder(
+        run_id=run_context["run_id"],
+        outputs_dir=Path(run_context["outputs_dir"]),
+        manifest_path=Path(run_context["manifest_path"]),
+    )
+    return TracingShellBackend(backend=backend, recorder=recorder)
+
+
 def build_agent() -> Any:
     """创建并返回配置好的 Deep Agent。"""
     missing: list[str] = []
@@ -75,21 +99,11 @@ def build_agent() -> Any:
             f"{joined}. Install project dependencies before running end-to-end flows."
         )
 
-    backend = LocalShellBackend(
-        root_dir=str(PROJECT_ROOT),
-        virtual_mode=True,
-        env={
-            "PLAYWRIGHT_CLI": resolve_playwright_cli(),
-            "PYTHONIOENCODING": "utf-8",
-            "PYTHONUTF8": "1",
-        },
-        inherit_env=True,
-    )
     return create_deep_agent(
         model=build_model(),
         tools=build_browser_tools(),
         system_prompt=SYSTEM_PROMPT,
-        backend=backend,
+        backend=lambda runtime: build_backend(getattr(runtime, "context", None)),
         skills=[SKILLS_DIR],
         middleware=[get_message_normalizer()],
         checkpointer=MemorySaver(),
